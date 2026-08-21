@@ -1,5 +1,27 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1787322413457,
+      "tag": "0000_glorious_maverick",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1787322725655,
+      "tag": "0001_special_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1787322855051,
+      "tag": "0002_left_gladiator",
+      "breakpoints": true
+    }
+  ]
 }

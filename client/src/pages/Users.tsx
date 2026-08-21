@@ -1,0 +1,20 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import QueryStateError from "@/components/QueryStateError";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { roleLabels } from "@/lib/tourism";
+import { trpc } from "@/lib/trpc";
+import { ShieldCheck, UsersRound } from "lucide-react";
+import { toast } from "sonner";
+
+export default function Users() {
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+  const query = trpc.users.list.useQuery(undefined, { enabled: user?.role === "admin" });
+  const update = trpc.users.updateRole.useMutation({ onSuccess: () => { toast.success("تم تحديث دور المستخدم."); utils.users.list.invalidate(); }, onError: (error) => toast.error(error.message) });
+  if (user?.role !== "admin") return <div className="rounded-2xl border border-[#cfe0da] bg-[#edf7f3] px-5 py-4 text-sm leading-7 text-[#23574e]">هذه الصفحة متاحة لدور admin فقط.</div>;
+  return <div className="space-y-6"><section><h1 className="page-title">المستخدمون والصلاحيات</h1><p className="page-subtitle">إدارة الوصول وفق الأدوار المؤسسية الثلاثة: admin وanalyst وviewer.</p></section>{query.isError && <QueryStateError message="تعذر تحميل حسابات المنظومة." onRetry={() => query.refetch()} />}<div className="grid gap-4 md:grid-cols-3"><RoleCard role="admin" description="إدارة المستخدمين والبيانات والمؤشرات والتقارير." /><RoleCard role="analyst" description="إدخال القياسات ومراجعتها واستيراد البيانات." /><RoleCard role="viewer" description="عرض اللوحات والمقارنات والتقارير فقط." /></div><section className="table-shell"><div className="flex items-center gap-3 border-b border-[#e8efec] p-4"><UsersRound className="h-5 w-5 text-[#0f5c58]" /><div><h2 className="font-bold text-[#173f3d]">حسابات المنظومة</h2><p className="mt-1 text-xs text-slate-500">يتطلب ظهور الحساب أن يسجل صاحبه الدخول إلى المنصة مرة واحدة.</p></div></div><div className="overflow-x-auto"><table className="w-full min-w-[700px] text-right text-sm"><thead className="bg-[#f6f9f7] text-xs text-slate-500"><tr><th className="px-5 py-3">المستخدم</th><th className="px-4 py-3">البريد الإلكتروني</th><th className="px-4 py-3">الدور</th><th className="px-4 py-3">تعديل الدور</th></tr></thead><tbody className="divide-y divide-[#edf2ef]">{query.isLoading ? <tr><td colSpan={4} className="p-8 text-center text-slate-500">جارٍ تحميل المستخدمين…</td></tr> : query.data?.length ? query.data.map((account) => <tr key={account.id}><td className="px-5 py-3.5 font-semibold text-[#244844]">{account.name || "مستخدم بلا اسم"}{account.id === user.id && <Badge className="mr-2 border-0 bg-[#e6f1ee] text-[#0f5c58]">حسابك</Badge>}</td><td className="px-4 py-3.5 text-slate-600" dir="ltr">{account.email || "—"}</td><td className="px-4 py-3.5"><Badge variant="outline">{roleLabels[account.role]}</Badge></td><td className="px-4 py-3.5"><Select value={account.role} onValueChange={(role: "admin" | "analyst" | "viewer") => update.mutate({ id: account.id, role })}><SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="admin">admin</SelectItem><SelectItem value="analyst">analyst</SelectItem><SelectItem value="viewer">viewer</SelectItem></SelectContent></Select></td></tr>) : <tr><td colSpan={4} className="p-8 text-center text-slate-500">لم يسجل أي مستخدم الدخول بعد.</td></tr>}</tbody></table></div></section></div>;
+}
+function RoleCard({ role, description }: { role: "admin" | "analyst" | "viewer"; description: string }) { return <div className="section-card p-4"><div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#e6f1ee] text-[#0f5c58]"><ShieldCheck className="h-4 w-4" /></span><div><p className="font-bold text-[#173f3d]" dir="ltr">{role}</p><p className="text-xs text-slate-500">{roleLabels[role]}</p></div></div><p className="mt-3 text-sm leading-6 text-slate-600">{description}</p></div>;
+}

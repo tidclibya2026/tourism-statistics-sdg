@@ -1,11 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -17,246 +13,131 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
-  useSidebar,
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
-import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { roleLabels } from "@/lib/tourism";
+import {
+  BarChart3,
+  Database,
+  FileBarChart,
+  FileUp,
+  GitCompareArrows,
+  LayoutDashboard,
+  LogOut,
+  Settings2,
+  ShieldCheck,
+} from "lucide-react";
 import { useLocation } from "wouter";
-import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import { Button } from "./ui/button";
+import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+type UserRole = "admin" | "analyst" | "viewer";
+
+const navigation: { icon: typeof LayoutDashboard; label: string; path: string; access: UserRole[] }[] = [
+  { icon: LayoutDashboard, label: "لوحة المؤشرات", path: "/", access: ["admin", "analyst", "viewer"] },
+  { icon: BarChart3, label: "إدارة المؤشرات", path: "/indicators", access: ["admin", "analyst", "viewer"] },
+  { icon: Database, label: "إدخال البيانات", path: "/data", access: ["admin", "analyst", "viewer"] },
+  { icon: GitCompareArrows, label: "مقارنة المؤشرات", path: "/compare", access: ["admin", "analyst", "viewer"] },
+  { icon: FileUp, label: "استيراد البيانات", path: "/imports", access: ["admin", "analyst"] },
+  { icon: FileBarChart, label: "التقارير والتصدير", path: "/reports", access: ["admin", "analyst", "viewer"] },
+  { icon: Settings2, label: "المستخدمون والصلاحيات", path: "/users", access: ["admin"] },
 ];
 
-const SIDEBAR_WIDTH_KEY = "sidebar-width";
-const DEFAULT_WIDTH = 280;
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 480;
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { loading, user, logout } = useAuth();
+  const [location, setLocation] = useLocation();
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
-  });
-  const { loading, user } = useAuth();
-
-  useEffect(() => {
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
-  }, [sidebarWidth]);
-
-  if (loading) {
-    return <DashboardLayoutSkeleton />
-  }
+  if (loading) return <DashboardLayoutSkeleton />;
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
-            </p>
+      <main className="min-h-screen grid place-items-center bg-[radial-gradient(circle_at_top,_#e7f5f3,_#f6f8f5_42%,_#edf1ee)] px-5" dir="rtl">
+        <section className="w-full max-w-md rounded-[2rem] border border-white/70 bg-white/85 p-9 text-center shadow-[0_24px_70px_rgba(25,72,69,.14)] backdrop-blur">
+          <div className="mx-auto mb-6 grid h-16 w-16 place-items-center rounded-2xl bg-[#0f5c58] text-white shadow-lg">
+            <ShieldCheck className="h-8 w-8" />
           </div>
-          <Button
-            onClick={() => startLogin()}
-            size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
-          >
-            Sign in
+          <p className="mb-2 text-sm font-bold tracking-[.18em] text-[#b57a32]">مركز المعلومات والتوثيق السياحي</p>
+          <h1 className="text-2xl font-bold text-[#123c3a]">منصة الإحصاءات والمؤشرات السياحية</h1>
+          <p className="mt-4 leading-7 text-slate-600">سجّل الدخول للوصول إلى بيانات المؤشرات والتقارير وفق صلاحيات حسابك.</p>
+          <Button onClick={() => startLogin()} className="mt-7 h-12 w-full bg-[#0f5c58] text-base hover:bg-[#0a4845]">
+            تسجيل الدخول إلى المنصة
           </Button>
-        </div>
-      </div>
+        </section>
+      </main>
     );
   }
 
-  return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": `${sidebarWidth}px`,
-        } as CSSProperties
-      }
-    >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
-        {children}
-      </DashboardLayoutContent>
-    </SidebarProvider>
-  );
-}
-
-type DashboardLayoutContentProps = {
-  children: React.ReactNode;
-  setSidebarWidth: (width: number) => void;
-};
-
-function DashboardLayoutContent({
-  children,
-  setSidebarWidth,
-}: DashboardLayoutContentProps) {
-  const { user, logout } = useAuth();
-  const [location, setLocation] = useLocation();
-  const { state, toggleSidebar } = useSidebar();
-  const isCollapsed = state === "collapsed";
-  const [isResizing, setIsResizing] = useState(false);
-  const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
-  const isMobile = useIsMobile();
-
-  useEffect(() => {
-    if (isCollapsed) {
-      setIsResizing(false);
-    }
-  }, [isCollapsed]);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
-      const newWidth = e.clientX - sidebarLeft;
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setSidebarWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-    }
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-  }, [isResizing, setSidebarWidth]);
+  const menuItems = navigation.filter((item) => item.access.includes(user.role));
+  const activeTitle = menuItems.find((item) => item.path === location)?.label ?? "منصة المؤشرات";
 
   return (
-    <>
-      <div className="relative" ref={sidebarRef}>
-        <Sidebar
-          collapsible="icon"
-          className="border-r-0"
-          disableTransition={isResizing}
-        >
-          <SidebarHeader className="h-16 justify-center">
-            <div className="flex items-center gap-3 px-2 transition-all w-full">
-              <button
-                onClick={toggleSidebar}
-                className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
-                aria-label="Toggle navigation"
-              >
-                <PanelLeft className="h-4 w-4 text-muted-foreground" />
-              </button>
-              {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
-                  </span>
-                </div>
-              ) : null}
+    <SidebarProvider defaultOpen>
+      <Sidebar side="right" collapsible="icon" className="border-l border-l-[#dce8e4] bg-[#0d3e3c] text-white" dir="rtl">
+        <SidebarHeader className="h-auto border-b border-white/10 px-3 py-5">
+          <button className="flex w-full items-center gap-3 text-right" onClick={() => setLocation("/")} aria-label="العودة إلى لوحة المؤشرات">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#c58a3f] text-[#153c39] shadow-lg">
+              <BarChart3 className="h-5 w-5" />
+            </span>
+            <span className="group-data-[collapsible=icon]:hidden">
+              <strong className="block text-sm leading-5 text-white">المرصد الوطني للسياحة</strong>
+              <span className="block text-[11px] text-teal-100/70">الإحصاءات والمؤشرات</span>
+            </span>
+          </button>
+        </SidebarHeader>
+
+        <SidebarContent className="px-3 py-5">
+          <p className="mb-3 px-3 text-[10px] font-bold tracking-[.14em] text-teal-100/50 group-data-[collapsible=icon]:hidden">إدارة المنظومة</p>
+          <SidebarMenu>
+            {menuItems.map((item) => {
+              const active = location === item.path;
+              return (
+                <SidebarMenuItem key={item.path}>
+                  <SidebarMenuButton
+                    isActive={active}
+                    tooltip={item.label}
+                    onClick={() => setLocation(item.path)}
+                    className="h-11 rounded-xl px-3 text-teal-50 hover:bg-white/10 hover:text-white data-[active=true]:bg-[#c58a3f] data-[active=true]:text-[#153c39] data-[active=true]:shadow-md"
+                  >
+                    <item.icon className="h-[18px] w-[18px]" />
+                    <span className="font-medium">{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarContent>
+
+        <SidebarFooter className="border-t border-white/10 p-3">
+          <div className="flex items-center gap-2.5 rounded-xl bg-white/5 p-2 group-data-[collapsible=icon]:justify-center">
+            <Avatar className="h-9 w-9 border border-white/20">
+              <AvatarFallback className="bg-teal-100 text-sm font-bold text-[#0d3e3c]">{user.name?.trim().charAt(0) || "م"}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+              <p className="truncate text-sm font-semibold">{user.name || "مستخدم المنصة"}</p>
+              <Badge variant="outline" className="mt-1 border-teal-100/20 bg-transparent px-1.5 py-0 text-[10px] text-teal-100">{roleLabels[user.role]}</Badge>
             </div>
-          </SidebarHeader>
+            <button onClick={logout} className="rounded-md p-1.5 text-teal-100/70 transition hover:bg-white/10 hover:text-white group-data-[collapsible=icon]:hidden" aria-label="تسجيل الخروج">
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </SidebarFooter>
+      </Sidebar>
 
-          <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
-                const isActive = location === item.path;
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
-                    >
-                      <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                      />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarContent>
-
-          <SidebarFooter className="p-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate leading-none">
-                      {user?.name || "-"}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
-                    </p>
-                  </div>
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={logout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarFooter>
-        </Sidebar>
-        <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
-          onMouseDown={() => {
-            if (isCollapsed) return;
-            setIsResizing(true);
-          }}
-          style={{ zIndex: 50 }}
-        />
-      </div>
-
-      <SidebarInset>
-        {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
-                  </span>
-                </div>
-              </div>
+      <SidebarInset className="min-w-0 bg-[#f4f7f5]" dir="rtl">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#dce8e4] bg-[#f9fbfa]/92 px-4 backdrop-blur md:px-7">
+          <div className="flex items-center gap-3">
+            <SidebarTrigger className="rounded-lg text-[#0f5c58] hover:bg-[#e4f0ed]" />
+            <div>
+              <p className="text-xs font-medium text-slate-500">منظومة البيانات السياحية الوطنية</p>
+              <h2 className="text-sm font-bold text-[#153c39]">{activeTitle}</h2>
             </div>
           </div>
-        )}
-        <main className="flex-1 p-4">{children}</main>
+          <div className="hidden items-center gap-2 md:flex">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="text-xs text-slate-500">النظام يعمل</span>
+          </div>
+        </header>
+        <main className="min-h-[calc(100vh-4rem)] p-4 md:p-7">{children}</main>
       </SidebarInset>
-    </>
+    </SidebarProvider>
   );
 }

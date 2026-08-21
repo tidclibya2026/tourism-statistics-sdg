@@ -1,0 +1,1 @@
+ALTER TABLE `indicatorObservations` MODIFY COLUMN `quarter` enum('annual','Q1','Q2','Q3','Q4') NOT NULL DEFAULT 'annual';
