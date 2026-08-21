@@ -11,6 +11,7 @@ import {
   users,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { buildTargetPerformance } from "./dashboardMetrics";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -91,6 +92,13 @@ export async function getIndicatorsByCodes(codes: string[]) {
   const db = await getDb();
   if (!db || codes.length === 0) return [];
   return db.select().from(indicators).where(inArray(indicators.code, codes));
+}
+
+export async function getIndicatorById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(indicators).where(eq(indicators.id, id)).limit(1);
+  return result[0];
 }
 
 export async function createIndicator(values: InsertIndicator) {
@@ -213,6 +221,7 @@ export async function getDashboardData(filters?: { year?: number; axis?: "اقت
     year,
     observations: scopedApproved.filter((row) => row.observation.year === year && row.observation.period === "annual").length,
   }));
+  const targetPerformance = buildTargetPerformance(scopedApproved);
 
   return {
     summary: {
@@ -220,11 +229,14 @@ export async function getDashboardData(filters?: { year?: number; axis?: "اقت
       publishedIndicators: allIndicators.filter((indicator) => indicator.status === "published").length,
       approvedObservations: scopedApproved.length,
       latestYear: latestYear || null,
+      indicatorsWithTargets: targetPerformance.length,
+      achievedTargets: targetPerformance.filter((item) => item.status === "achieved").length,
     },
     axisDistribution,
     trendByYear,
     latest,
     recent: (filters?.year ? observations.filter((row) => row.observation.year === filters.year) : observations).slice(0, 8),
     availableYears,
+    targetPerformance,
   };
 }

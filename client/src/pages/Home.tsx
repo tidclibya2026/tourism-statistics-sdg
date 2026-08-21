@@ -3,8 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { arabicNumber, asNumber, axisMeta, observationStatusMeta, periodLabel } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
-import { Activity, BadgeCheck, CalendarDays, ChartNoAxesCombined, Database, Layers3 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Activity, BadgeCheck, CalendarDays, ChartNoAxesCombined, Database, Layers3, Target, Trophy } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";
@@ -42,7 +42,7 @@ export default function Home() {
     return <div className="space-y-5"><Skeleton className="h-28 w-full rounded-2xl" /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton className="h-36 rounded-2xl" key={index} />)}</div><Skeleton className="h-80 rounded-2xl" /></div>;
   }
 
-  const summary = data?.summary ?? { totalIndicators: 0, publishedIndicators: 0, approvedObservations: 0, latestYear: null };
+  const summary = data?.summary ?? { totalIndicators: 0, publishedIndicators: 0, approvedObservations: 0, latestYear: null, indicatorsWithTargets: 0, achievedTargets: 0 };
 
   return (
     <div className="space-y-6">
@@ -67,11 +67,18 @@ export default function Home() {
 
       {dashboard.isError && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">تعذر تحميل لوحة المؤشرات. <button className="mr-2 font-bold underline" onClick={() => dashboard.refetch()}>إعادة المحاولة</button></div>}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard label="إجمالي المؤشرات" value={arabicNumber.format(summary.totalIndicators)} icon={Layers3} hint="المؤشرات المعرفة في المنظومة" tone="bg-[#e6f1ee] text-[#0f5c58]" />
         <MetricCard label="المؤشرات المنشورة" value={arabicNumber.format(summary.publishedIndicators)} icon={BadgeCheck} hint="متاحة للعرض والتقارير" tone="bg-[#f9eedc] text-[#a46725]" />
         <MetricCard label="القياسات المعتمدة" value={arabicNumber.format(summary.approvedObservations)} icon={Database} hint="سجلات ذات حالة اعتماد" tone="bg-[#e5f2f7] text-[#277c95]" />
         <MetricCard label="آخر سنة بيانات" value={summary.latestYear ? arabicNumber.format(summary.latestYear) : "—"} icon={CalendarDays} hint="للقياسات السنوية المعتمدة" tone="bg-[#e9f3ed] text-[#2b8062]" />
+        <MetricCard label="مؤشرات لها أهداف" value={arabicNumber.format(summary.indicatorsWithTargets)} icon={Target} hint="قياسات سنوية معتمدة مرتبطة بمستهدف" tone="bg-[#fff4df] text-[#b47730]" />
+        <MetricCard label="أهداف محققة" value={arabicNumber.format(summary.achievedTargets)} icon={Trophy} hint="القيمة الفعلية تساوي الهدف أو تتجاوزه" tone="bg-[#e5f2f7] text-[#277c95]" />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.35fr_.95fr]">
+        <Card className="border-[#dce8e4] shadow-sm"><CardContent className="p-5 md:p-6"><div className="mb-5 flex items-start justify-between"><div><h3 className="font-bold text-[#173f3d]">نسبة تحقيق المستهدفات</h3><p className="mt-1 text-xs text-slate-500">مقارنة موحّدة بالقيمة المستهدفة = 100%، حتى عند اختلاف وحدات القياس.</p></div><Target className="h-5 w-5 text-[#b47730]" /></div>{data?.targetPerformance?.length ? <div className="h-[340px]" dir="ltr"><ResponsiveContainer width="100%" height="100%"><BarChart data={data.targetPerformance.slice(0, 8)} layout="vertical" margin={{ top: 4, right: 30, left: 22, bottom: 0 }}><CartesianGrid horizontal={false} stroke="#e4ece9" /><XAxis type="number" domain={[0, "dataMax + 10"]} tickFormatter={(value) => `${value}%`} tick={{ fill: "#64748b", fontSize: 12 }} /><YAxis type="category" dataKey="name" width={118} tick={{ fill: "#475569", fontSize: 11 }} /><Tooltip formatter={(value) => [`${Number(value).toLocaleString("ar-LY", { maximumFractionDigits: 1 })}%`, "تحقيق الهدف"]} /><ReferenceLine x={100} stroke="#c58a3f" strokeDasharray="5 4" label={{ value: "الهدف", position: "top", fill: "#a46725", fontSize: 11 }} /><Bar dataKey="attainment" name="تحقيق الهدف" radius={[0, 7, 7, 0]}>{data.targetPerformance.slice(0, 8).map((entry) => <Cell key={entry.indicatorId} fill={entry.status === "achieved" ? "#20806c" : "#d08a35"} />)}</Bar></BarChart></ResponsiveContainer></div> : <EmptyChart message="ستظهر المقارنة بعد اعتماد قياسات سنوية مرتبطة بقيم مستهدفة." />}</CardContent></Card>
+        <Card className="border-[#dce8e4] shadow-sm"><CardContent className="p-5 md:p-6"><div className="mb-4"><h3 className="font-bold text-[#173f3d]">القيمة الفعلية مقابل الهدف</h3><p className="mt-1 text-xs text-slate-500">أحدث قياس سنوي معتمد لكل مؤشر له هدف.</p></div>{data?.targetPerformance?.length ? <div className="divide-y divide-[#e8efec]">{data.targetPerformance.slice(0, 6).map((item) => <div className="py-3" key={item.indicatorId}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#254743]">{item.name}</p><p className="mt-1 text-xs text-slate-500">{arabicNumber.format(item.year)} · {item.unit}</p></div><Badge className={`${item.status === "achieved" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"} border-0`}>{item.attainment.toLocaleString("ar-LY", { maximumFractionDigits: 1 })}%</Badge></div><div className="mt-2 flex items-center justify-between text-xs"><span className="text-slate-500">فعلي: <strong className="text-[#0f5c58]">{arabicNumber.format(item.actual)}</strong></span><span className="text-slate-500">مستهدف: <strong className="text-[#b47730]">{arabicNumber.format(item.target)}</strong></span></div></div>)}</div> : <EmptyText text="لا تتوفر قياسات سنوية معتمدة ذات قيم مستهدفة ضمن الفلاتر الحالية." />}</CardContent></Card>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.4fr_.9fr]">

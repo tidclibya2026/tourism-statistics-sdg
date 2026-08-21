@@ -33,6 +33,7 @@ vi.mock("@/lib/trpc", () => ({
       upsert: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       setStatus: { useMutation: () => ({ mutate: vi.fn() }) },
     },
+    forecast: { calculate: { useQuery: () => ({ data: undefined, isError: false, isLoading: false, refetch }) } },
   },
 }));
 

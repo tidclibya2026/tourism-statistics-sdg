@@ -7,6 +7,7 @@ import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { validateImportedObservations } from "./validation";
 import { calculateAnnualForecast } from "./forecast";
+import { validateUnitValues } from "../shared/unitValidation";
 
 const axisSchema = z.enum(["اقتصادي", "اجتماعي", "بيئي"]);
 const frameworkSchema = z.enum(["UNWTO", "SDG"]);
@@ -74,13 +75,17 @@ export const appRouter = router({
   }),
   observations: router({
     list: protectedProcedure.input(z.object({ indicatorIds: z.array(z.number().int().positive()).optional(), yearFrom: z.number().int().optional(), yearTo: z.number().int().optional(), status: verificationSchema.optional() }).optional()).query(({ input }) => db.listObservations(input)),
-    upsert: analystProcedure.input(observationInput).mutation(({ ctx, input }) => {
+    upsert: analystProcedure.input(observationInput).mutation(async ({ ctx, input }) => {
       if (input.period === "annual" && input.quarter !== "annual") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "البيانات السنوية يجب أن تستخدم الفترة annual." });
       }
       if (input.period === "quarterly" && input.quarter === "annual") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "البيانات الربع سنوية تتطلب تحديد الربع." });
       }
+      const indicator = await db.getIndicatorById(input.indicatorId);
+      if (!indicator) throw new TRPCError({ code: "NOT_FOUND", message: "المؤشر المختار غير موجود." });
+      const unitErrors = validateUnitValues(indicator.unit, input.value, input.targetValue);
+      if (unitErrors.length) throw new TRPCError({ code: "BAD_REQUEST", message: unitErrors[0] });
       return db.upsertObservation({ ...input, value: String(input.value), targetValue: input.targetValue === null ? null : input.targetValue === undefined ? undefined : String(input.targetValue), enteredBy: ctx.user.id, verificationStatus: "draft" });
     }),
     setStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: verificationSchema })).mutation(({ ctx, input }) => db.changeObservationStatus(input.id, input.status, ctx.user.id)),
