@@ -5,6 +5,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Compare from "./pages/Compare";
 import DataEntry from "./pages/DataEntry";
+import Forecast from "./pages/Forecast";
 import Home from "./pages/Home";
 import Imports from "./pages/Imports";
 import Indicators from "./pages/Indicators";
@@ -20,6 +21,7 @@ function Router() {
     <Route path="/"><ProtectedPage><Home /></ProtectedPage></Route>
     <Route path="/indicators"><ProtectedPage><Indicators /></ProtectedPage></Route>
     <Route path="/data"><ProtectedPage><DataEntry /></ProtectedPage></Route>
+    <Route path="/forecast"><ProtectedPage><Forecast /></ProtectedPage></Route>
     <Route path="/compare"><ProtectedPage><Compare /></ProtectedPage></Route>
     <Route path="/imports"><ProtectedPage><Imports /></ProtectedPage></Route>
     <Route path="/reports"><ProtectedPage><Reports /></ProtectedPage></Route>

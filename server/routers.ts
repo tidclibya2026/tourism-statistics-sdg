@@ -6,6 +6,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { validateImportedObservations } from "./validation";
+import { calculateAnnualForecast } from "./forecast";
 
 const axisSchema = z.enum(["اقتصادي", "اجتماعي", "بيئي"]);
 const frameworkSchema = z.enum(["UNWTO", "SDG"]);
@@ -84,6 +85,26 @@ export const appRouter = router({
     }),
     setStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: verificationSchema })).mutation(({ ctx, input }) => db.changeObservationStatus(input.id, input.status, ctx.user.id)),
     delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => db.deleteObservation(input.id)),
+  }),
+  forecast: router({
+    calculate: protectedProcedure.input(z.object({
+      indicatorId: z.number().int().positive(),
+      horizon: z.number().int().min(1).max(15).default(5),
+      method: z.enum(["historical_cagr", "custom_rate"]).default("historical_cagr"),
+      customRate: z.number().finite().min(-0.99).max(2).optional(),
+    }).superRefine((value, context) => {
+      if (value.method === "custom_rate" && value.customRate === undefined) {
+        context.addIssue({ code: "custom", path: ["customRate"], message: "يتطلب المعدل المخصص إدخال نسبة نمو." });
+      }
+    })).query(async ({ input }) => {
+      const history = await db.getApprovedAnnualObservations(input.indicatorId);
+      try {
+        const result = calculateAnnualForecast({ history, horizon: input.horizon, method: input.method, customRate: input.customRate });
+        return { ...result, indicator: history[0]?.indicator ?? null };
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "تعذر حساب التنبؤ." });
+      }
+    }),
   }),
   imports: router({
     history: protectedProcedure.query(() => db.listImportJobs()),

@@ -130,6 +130,15 @@ export async function listObservations(filters?: { indicatorIds?: number[]; year
     : query.orderBy(desc(indicatorObservations.year), asc(indicatorObservations.quarter));
 }
 
+export async function getApprovedAnnualObservations(indicatorId: number) {
+  const observations = await listObservations({ indicatorIds: [indicatorId], status: "approved" });
+  return observations
+    .filter((row) => row.observation.period === "annual")
+    .map((row) => ({ year: row.observation.year, value: Number(row.observation.value), indicator: row.indicator }))
+    .filter((row) => Number.isFinite(row.value))
+    .sort((a, b) => a.year - b.year);
+}
+
 export async function upsertObservation(values: InsertIndicatorObservation) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
