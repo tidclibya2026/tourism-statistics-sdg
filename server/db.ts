@@ -12,6 +12,8 @@ import {
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { buildTargetPerformance } from "./dashboardMetrics";
+import { summarizeHistoricalArchive } from "./historicalArchive";
+import { historicalSourceRegistry } from "./historicalSourceRegistry";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -76,12 +78,13 @@ export async function updateUserRole(id: number, role: "admin" | "analyst" | "vi
   await db.update(users).set({ role }).where(eq(users.id, id));
 }
 
-export async function listIndicators(filters?: { axis?: "اقتصادي" | "اجتماعي" | "بيئي"; framework?: "UNWTO" | "SDG"; status?: "draft" | "published" | "archived" }) {
+export async function listIndicators(filters?: { axis?: "اقتصادي" | "اجتماعي" | "بيئي"; framework?: "UNWTO" | "SDG"; sdgReference?: "SDG 8" | "SDG 11" | "SDG 12" | "SDG 14" | "SDG 17"; status?: "draft" | "published" | "archived" }) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [
     filters?.axis ? eq(indicators.axis, filters.axis) : undefined,
     filters?.framework ? eq(indicators.framework, filters.framework) : undefined,
+    filters?.sdgReference ? eq(indicators.sdgReference, filters.sdgReference) : undefined,
     filters?.status ? eq(indicators.status, filters.status) : undefined,
   ].filter(Boolean);
   const query = db.select().from(indicators);
@@ -147,6 +150,33 @@ export async function getApprovedAnnualObservations(indicatorId: number) {
     .sort((a, b) => a.year - b.year);
 }
 
+export async function getHistoricalArchiveData() {
+  const historicalIndicators = (await listIndicators()).filter((indicator) => indicator.code.startsWith("HIST-"));
+  const observations = await listObservations({ indicatorIds: historicalIndicators.map((indicator) => indicator.id) });
+  const summary = summarizeHistoricalArchive(observations);
+  return {
+    ...summary,
+    sourceRegistry: historicalSourceRegistry,
+    indicators: historicalIndicators,
+    observations: observations
+      .filter((row) => row.observation.period === "annual" && row.observation.quarter === "annual")
+      .map((row) => ({
+        indicatorId: row.indicator.id,
+        indicatorCode: row.indicator.code,
+        indicatorName: row.indicator.name,
+        unit: row.indicator.unit,
+        axis: row.indicator.axis,
+        framework: row.indicator.framework,
+        sdgReference: row.indicator.sdgReference,
+        year: row.observation.year,
+        value: Number(row.observation.value),
+        verificationStatus: row.observation.verificationStatus,
+        source: row.observation.source,
+      }))
+      .sort((a, b) => a.year - b.year || a.indicatorName.localeCompare(b.indicatorName, "ar")),
+  };
+}
+
 export async function upsertObservation(values: InsertIndicatorObservation) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
@@ -205,8 +235,8 @@ export async function listImportJobs() {
   return db.select().from(importJobs).orderBy(desc(importJobs.createdAt)).limit(20);
 }
 
-export async function getDashboardData(filters?: { year?: number; axis?: "اقتصادي" | "اجتماعي" | "بيئي"; framework?: "UNWTO" | "SDG" }) {
-  const allIndicators = await listIndicators({ axis: filters?.axis, framework: filters?.framework });
+export async function getDashboardData(filters?: { year?: number; axis?: "اقتصادي" | "اجتماعي" | "بيئي"; framework?: "UNWTO" | "SDG"; sdgReference?: "SDG 8" | "SDG 11" | "SDG 12" | "SDG 14" | "SDG 17" }) {
+  const allIndicators = await listIndicators({ axis: filters?.axis, framework: filters?.framework, sdgReference: filters?.sdgReference });
   const observations = await listObservations({ indicatorIds: allIndicators.map((indicator) => indicator.id) });
   const approved = observations.filter((row) => row.observation.verificationStatus === "approved");
   const availableYears = Array.from(new Set(approved.map((row) => row.observation.year))).sort((a, b) => b - a);

@@ -8,6 +8,8 @@ import * as db from "./db";
 import { validateImportedObservations } from "./validation";
 import { calculateAnnualForecast } from "./forecast";
 import { validateUnitValues } from "../shared/unitValidation";
+import { invokeLLM } from "./_core/llm";
+import { buildDashboardNarrativePrompt, dashboardNarrativeSystemPrompt } from "./dashboardNarrative";
 
 const axisSchema = z.enum(["اقتصادي", "اجتماعي", "بيئي"]);
 const frameworkSchema = z.enum(["UNWTO", "SDG"]);
@@ -62,10 +64,34 @@ export const appRouter = router({
       year: z.number().int().min(2000).max(2100).optional(),
       axis: axisSchema.optional(),
       framework: frameworkSchema.optional(),
+      sdgReference: sdgSchema.optional(),
     }).optional()).query(({ input }) => db.getDashboardData(input)),
+    narrative: protectedProcedure.input(z.object({
+      year: z.number().int().min(2000).max(2100).optional(),
+      axis: axisSchema.optional(),
+      framework: frameworkSchema.optional(),
+      sdgReference: sdgSchema.optional(),
+    }).optional()).mutation(async ({ input }) => {
+      const data = await db.getDashboardData(input);
+      if (data.summary.approvedObservations === 0) {
+        return { text: "## لا توجد بيانات معتمدة كافية\n\nلا يمكن توليد تقرير تحليلي قبل اعتماد قياسات للمؤشرات ضمن نطاق الفلاتر الحالي." };
+      }
+      const response = await invokeLLM({
+        model: "gpt-5-mini",
+        maxTokens: 900,
+        messages: [
+          { role: "system", content: dashboardNarrativeSystemPrompt },
+          { role: "user", content: buildDashboardNarrativePrompt(data, input ?? {}) },
+        ],
+      });
+      const content = response.choices[0]?.message?.content;
+      const text = typeof content === "string" ? content.trim() : "";
+      if (!text) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "تعذر توليد التقرير النصي في الوقت الحالي." });
+      return { text };
+    }),
   }),
   indicators: router({
-    list: protectedProcedure.input(z.object({ axis: axisSchema.optional(), framework: frameworkSchema.optional(), status: statusSchema.optional() }).optional()).query(({ input }) => db.listIndicators(input)),
+    list: protectedProcedure.input(z.object({ axis: axisSchema.optional(), framework: frameworkSchema.optional(), sdgReference: sdgSchema.optional(), status: statusSchema.optional() }).optional()).query(({ input }) => db.listIndicators(input)),
     create: adminProcedure.input(indicatorInput).mutation(({ ctx, input }) => db.createIndicator({ ...input, createdBy: ctx.user.id })),
     update: adminProcedure.input(indicatorInput.partial().extend({ id: z.number().int().positive() })).mutation(({ input }) => {
       const { id, ...values } = input;
@@ -110,6 +136,9 @@ export const appRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "تعذر حساب التنبؤ." });
       }
     }),
+  }),
+  historical: router({
+    overview: protectedProcedure.query(() => db.getHistoricalArchiveData()),
   }),
   imports: router({
     history: protectedProcedure.query(() => db.listImportJobs()),

@@ -27,6 +27,7 @@ import {
   LogOut,
   Settings2,
   ShieldCheck,
+  Archive,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -38,6 +39,7 @@ const navigation: { icon: typeof LayoutDashboard; label: string; path: string; a
   { icon: BarChart3, label: "إدارة المؤشرات", path: "/indicators", access: ["admin", "analyst", "viewer"] },
   { icon: Database, label: "إدخال البيانات", path: "/data", access: ["admin", "analyst", "viewer"] },
   { icon: Sparkles, label: "التنبؤ السياحي", path: "/forecast", access: ["admin", "analyst", "viewer"] },
+  { icon: Archive, label: "الأرشيف التاريخي", path: "/archive", access: ["admin", "analyst", "viewer"] },
   { icon: GitCompareArrows, label: "مقارنة المؤشرات", path: "/compare", access: ["admin", "analyst", "viewer"] },
   { icon: FileUp, label: "استيراد البيانات", path: "/imports", access: ["admin", "analyst"] },
   { icon: FileBarChart, label: "التقارير والتصدير", path: "/reports", access: ["admin", "analyst", "viewer"] },

@@ -3,11 +3,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { arabicNumber, asNumber, axisMeta, observationStatusMeta, periodLabel } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
-import { Activity, BadgeCheck, CalendarDays, ChartNoAxesCombined, Database, Layers3, Target, Trophy } from "lucide-react";
+import { downloadDashboardWorkbook } from "@/lib/dashboardDownload";
+import { exportDashboardPdf } from "@/lib/dashboardPdf";
+import { Streamdown } from "streamdown";
+import html2canvas from "html2canvas";
+import { Activity, BadgeCheck, CalendarDays, ChartNoAxesCombined, Database, FileSpreadsheet, FileText, Layers3, Sparkles, Target, Trophy } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 const axisColors = ["#c58a3f", "#25829a", "#20806c"];
 
@@ -30,12 +35,16 @@ export default function Home() {
   const [year, setYear] = useState("all");
   const [axis, setAxis] = useState("all");
   const [framework, setFramework] = useState("all");
+  const [sdgReference, setSdgReference] = useState("all");
+  const dashboardRef = useRef<HTMLDivElement>(null);
   const dashboardInput = useMemo(() => ({
     year: year === "all" ? undefined : Number(year),
     axis: axis === "all" ? undefined : axis as "اقتصادي" | "اجتماعي" | "بيئي",
     framework: framework === "all" ? undefined : framework as "UNWTO" | "SDG",
-  }), [year, axis, framework]);
+    sdgReference: sdgReference === "all" ? undefined : sdgReference as "SDG 8" | "SDG 11" | "SDG 12" | "SDG 14" | "SDG 17",
+  }), [year, axis, framework, sdgReference]);
   const dashboard = trpc.dashboard.summary.useQuery(dashboardInput);
+  const narrative = trpc.dashboard.narrative.useMutation();
   const data = dashboard.data;
 
   if (dashboard.isLoading) {
@@ -44,8 +53,24 @@ export default function Home() {
 
   const summary = data?.summary ?? { totalIndicators: 0, publishedIndicators: 0, approvedObservations: 0, latestYear: null, indicatorsWithTargets: 0, achievedTargets: 0 };
 
+  async function exportExcel() {
+    if (!data) { toast.error("لا تتوفر بيانات لوحة المعلومات للتصدير."); return; }
+    try {
+      const chart = dashboardRef.current?.querySelector(".recharts-responsive-container") as HTMLElement | null;
+      const chartImage = chart ? (await html2canvas(chart, { scale: 2, backgroundColor: "#ffffff", useCORS: true })).toDataURL("image/png") : undefined;
+      await downloadDashboardWorkbook(data, chartImage);
+    } catch { toast.error("تعذر إنشاء ملف Excel في الوقت الحالي."); }
+  }
+
+  async function exportPdf() {
+    if (!dashboardRef.current || !data) { toast.error("لا تتوفر بيانات لوحة المعلومات للتصدير."); return; }
+    try {
+      await exportDashboardPdf(dashboardRef.current, `لوحة-المؤشرات-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch { toast.error("تعذر إنشاء ملف PDF في الوقت الحالي."); }
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={dashboardRef}>
       <section className="relative overflow-hidden rounded-[1.5rem] bg-[#0f5c58] px-6 py-7 text-white shadow-[0_20px_45px_rgba(15,92,88,.18)] md:px-8">
         <div className="absolute -left-10 -top-14 h-44 w-44 rounded-full border-[20px] border-[#c58a3f]/25" />
         <div className="relative max-w-2xl">
@@ -57,13 +82,18 @@ export default function Home() {
 
       <section className="section-card flex flex-col gap-3 p-4 md:flex-row md:items-end md:justify-between">
         <div><h2 className="font-bold text-[#173f3d]">فلاتر العرض</h2><p className="mt-1 text-xs text-slate-500">تُحدّث البطاقات والرسوم وأحدث القياسات بحسب الاختيارات.</p></div>
-        <div className="grid gap-2 sm:grid-cols-4 sm:items-end">
+        <div className="grid gap-2 sm:grid-cols-5 sm:items-end">
           <label><span className="field-label">السنة</span><Select value={year} onValueChange={setYear}><SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">كل السنوات</SelectItem>{(data?.availableYears ?? []).map((option) => <SelectItem key={option} value={String(option)}>{arabicNumber.format(option)}</SelectItem>)}</SelectContent></Select></label>
           <label><span className="field-label">المحور</span><Select value={axis} onValueChange={setAxis}><SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">كل المحاور</SelectItem><SelectItem value="اقتصادي">اقتصادي</SelectItem><SelectItem value="اجتماعي">اجتماعي</SelectItem><SelectItem value="بيئي">بيئي</SelectItem></SelectContent></Select></label>
           <label><span className="field-label">الإطار</span><Select value={framework} onValueChange={setFramework}><SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">كل الأطر</SelectItem><SelectItem value="UNWTO">UNWTO</SelectItem><SelectItem value="SDG">SDG</SelectItem></SelectContent></Select></label>
-          <Button variant="outline" className="h-10" onClick={() => { setYear("all"); setAxis("all"); setFramework("all"); }}>إعادة الضبط</Button>
+          <label><span className="field-label">هدف التنمية</span><Select value={sdgReference} onValueChange={setSdgReference}><SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">كل الأهداف</SelectItem><SelectItem value="SDG 8">SDG 8</SelectItem><SelectItem value="SDG 11">SDG 11</SelectItem><SelectItem value="SDG 12">SDG 12</SelectItem><SelectItem value="SDG 14">SDG 14</SelectItem><SelectItem value="SDG 17">SDG 17</SelectItem></SelectContent></Select></label>
+          <Button variant="outline" className="h-10" onClick={() => { setYear("all"); setAxis("all"); setFramework("all"); setSdgReference("all"); }}>إعادة الضبط</Button>
         </div>
       </section>
+
+      <section className="section-card flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"><div><h2 className="font-bold text-[#173f3d]">تصدير لوحة المعلومات</h2><p className="mt-1 text-xs text-slate-500">يتضمن PDF الرسوم المرئية الحالية، بينما يضم Excel الملخص وبيانات الرسوم وتحقيق الأهداف.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportExcel}><FileSpreadsheet className="ml-1.5 h-4 w-4 text-emerald-700" />Excel</Button><Button className="bg-[#0f5c58] hover:bg-[#0a4845]" onClick={exportPdf}><FileText className="ml-1.5 h-4 w-4" />PDF</Button></div></section>
+
+      <section className="overflow-hidden rounded-2xl border border-[#cae1d7] bg-[linear-gradient(135deg,#eff9f4,#f9fcfa)] p-5"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#dff0e9] text-[#0f5c58]"><Sparkles className="h-5 w-5" /></span><div><h2 className="font-bold text-[#173f3d]">ملخص ذكي للوحة المعلومات</h2><p className="mt-1 max-w-2xl text-xs leading-6 text-slate-600">ينشأ التقرير عند الطلب من البيانات المصفاة فقط، ولا يضيف أرقاماً أو استنتاجات غير موجودة في سجلات المنظومة.</p></div></div><Button className="bg-[#0f5c58] hover:bg-[#0a4845]" onClick={() => narrative.mutate(dashboardInput)} disabled={narrative.isPending || !data}><Sparkles className="ml-1.5 h-4 w-4" />{narrative.isPending ? "جارٍ توليد الملخص…" : "توليد التقرير النصي"}</Button></div>{narrative.isError && <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{narrative.error.message}</div>}{narrative.data?.text && <div className="prose prose-slate mt-5 max-w-none rounded-xl border border-[#dbe9e3] bg-white p-4 text-sm leading-7 text-slate-700"><Streamdown>{narrative.data.text}</Streamdown></div>}</section>
 
       {dashboard.isError && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">تعذر تحميل لوحة المؤشرات. <button className="mr-2 font-bold underline" onClick={() => dashboard.refetch()}>إعادة المحاولة</button></div>}
 

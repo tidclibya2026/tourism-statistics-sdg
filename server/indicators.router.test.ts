@@ -13,8 +13,10 @@ const dbMock = vi.hoisted(() => ({
   updateUserRole: vi.fn(),
   upsertObservation: vi.fn(),
 }));
+const llmMock = vi.hoisted(() => ({ invokeLLM: vi.fn() }));
 
 vi.mock("./db", () => dbMock);
+vi.mock("./_core/llm", () => llmMock);
 
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
@@ -41,5 +43,29 @@ describe("indicators router", () => {
     await caller.indicators.delete({ id: 15 });
     expect(dbMock.deleteIndicator).toHaveBeenCalledWith(15);
   });
-});
 
+  it("forwards year and SDG reference filters to the dashboard data layer", async () => {
+    dbMock.getDashboardData.mockResolvedValue({ summary: { approvedObservations: 0 } });
+    const caller = appRouter.createCaller(adminContext());
+
+    await caller.dashboard.summary({ year: 2025, sdgReference: "SDG 8" });
+
+    expect(dbMock.getDashboardData).toHaveBeenCalledWith({ year: 2025, sdgReference: "SDG 8" });
+  });
+
+  it("generates an AI narrative only from the filtered dashboard data", async () => {
+    dbMock.getDashboardData.mockResolvedValue({
+      summary: { totalIndicators: 2, publishedIndicators: 2, approvedObservations: 4, latestYear: 2025, indicatorsWithTargets: 1, achievedTargets: 1 },
+      trendByYear: [{ year: 2025, observations: 4 }],
+      targetPerformance: [],
+    });
+    llmMock.invokeLLM.mockResolvedValue({ choices: [{ message: { content: "## الملخص التنفيذي\n\nبيانات معتمدة." } }] });
+    const caller = appRouter.createCaller(adminContext());
+
+    const result = await caller.dashboard.narrative({ year: 2025, sdgReference: "SDG 8" });
+
+    expect(result.text).toContain("الملخص التنفيذي");
+    expect(llmMock.invokeLLM).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-5-mini" }));
+    expect(dbMock.getDashboardData).toHaveBeenCalledWith({ year: 2025, sdgReference: "SDG 8" });
+  });
+});
