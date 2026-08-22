@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dbMock = vi.hoisted(() => ({
+  createSpatialArea: vi.fn(),
+  getIndicatorById: vi.fn(),
   getPublicationFeed: vi.fn(),
   getPublicationHubData: vi.fn(),
+  getSpatialAreaById: vi.fn(),
+  getSpatialManagementData: vi.fn(),
   getSpatialOverview: vi.fn(),
+  upsertSpatialObservation: vi.fn(),
   updatePublicationDestinationStatus: vi.fn(),
 }));
 
@@ -56,5 +61,27 @@ describe("spatial and publication routers", () => {
     await admin.publication.updateStatus({ id: 1, status: "ready" });
     expect(dbMock.updatePublicationDestinationStatus).toHaveBeenCalledWith(1, "ready", 7);
     await expect(viewer.publication.updateStatus({ id: 1, status: "ready" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("stores spatial measurements as drafts after validating an active location and the indicator unit", async () => {
+    dbMock.getSpatialAreaById.mockResolvedValue({ id: 8, status: "active", type: "city" });
+    dbMock.getIndicatorById.mockResolvedValue({ id: 3, unit: "عدد" });
+    dbMock.upsertSpatialObservation.mockResolvedValue(undefined);
+    const analyst = appRouter.createCaller(context("analyst"));
+
+    await analyst.spatial.upsertObservation({ spatialAreaId: 8, indicatorId: 3, year: 2025, period: "annual", quarter: "annual", value: 240, targetValue: null, source: "تقرير رسمي", notes: "الصفحة 12" });
+
+    expect(dbMock.upsertSpatialObservation).toHaveBeenCalledWith(expect.objectContaining({ spatialAreaId: 8, indicatorId: 3, value: "240", verificationStatus: "draft", enteredBy: 7 }));
+  });
+
+  it("allows only an administrator to register a verified boundary reference", async () => {
+    dbMock.createSpatialArea.mockResolvedValue(17);
+    const admin = appRouter.createCaller(context("admin"));
+    const analyst = appRouter.createCaller(context("analyst"));
+    const payload = { code: "CITY-EX", name: "مدينة تجريبية", type: "city" as const, parentId: null, geographicSource: "مرجع تسمية", boundaryReferenceTitle: "مرجع حدود رسمي", boundaryReferenceUrl: "https://example.gov.ly/boundaries", boundaryStatus: "verified" as const, status: "active" as const };
+
+    await expect(admin.spatial.createArea(payload)).resolves.toBe(17);
+    expect(dbMock.createSpatialArea).toHaveBeenCalledWith(expect.objectContaining({ boundaryStatus: "verified", boundaryVerifiedBy: 7, boundaryVerifiedAt: expect.any(Date) }));
+    await expect(analyst.spatial.createArea(payload)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

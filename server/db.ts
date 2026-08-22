@@ -3,6 +3,8 @@ import { drizzle } from "drizzle-orm/mysql2";
 import {
   type InsertIndicator,
   type InsertIndicatorObservation,
+  type InsertSpatialArea,
+  type InsertSpatialObservation,
   type InsertUser,
   importIssues,
   importJobs,
@@ -252,6 +254,87 @@ export async function getSpatialOverview(filters?: SpatialFilters) {
       .sort((a, b) => b.year - a.year || a.areaName.localeCompare(b.areaName, "ar")),
     availableYears,
   };
+}
+
+export async function getSpatialManagementData() {
+  const db = await getDb();
+  if (!db) return { areas: [], indicators: [], observations: [] };
+  const [areas, publishedIndicators, observations] = await Promise.all([
+    db.select().from(spatialAreas).orderBy(asc(spatialAreas.type), asc(spatialAreas.name)),
+    listIndicators({ status: "published" }),
+    db.select({ observation: spatialObservations, indicator: indicators, area: spatialAreas })
+      .from(spatialObservations)
+      .innerJoin(indicators, eq(spatialObservations.indicatorId, indicators.id))
+      .innerJoin(spatialAreas, eq(spatialObservations.spatialAreaId, spatialAreas.id))
+      .orderBy(desc(spatialObservations.year), desc(spatialObservations.updatedAt)),
+  ]);
+  const areaById = new Map(areas.map((area) => [area.id, area]));
+  return {
+    areas: areas.map((area) => ({ ...area, parentName: area.parentId ? areaById.get(area.parentId)?.name ?? null : null })),
+    indicators: publishedIndicators,
+    observations: observations.map((row) => ({
+      ...row.observation,
+      value: Number(row.observation.value),
+      targetValue: row.observation.targetValue === null ? null : Number(row.observation.targetValue),
+      areaName: row.area.name,
+      indicatorName: row.indicator.name,
+      unit: row.indicator.unit,
+      indicatorCode: row.indicator.code,
+    })),
+  };
+}
+
+export async function createSpatialArea(values: InsertSpatialArea) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const result = await db.insert(spatialAreas).values(values);
+  return Number(result[0].insertId);
+}
+
+export async function getSpatialAreaById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(spatialAreas).where(eq(spatialAreas.id, id)).limit(1);
+  return result[0];
+}
+
+export async function updateSpatialArea(id: number, values: Partial<InsertSpatialArea>) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.update(spatialAreas).set(values).where(eq(spatialAreas.id, id));
+}
+
+export async function upsertSpatialObservation(values: InsertSpatialObservation) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.insert(spatialObservations).values(values).onDuplicateKeyUpdate({
+    set: {
+      value: values.value,
+      targetValue: values.targetValue,
+      source: values.source,
+      notes: values.notes,
+      enteredBy: values.enteredBy,
+      verificationStatus: values.verificationStatus,
+      verifiedBy: values.verifiedBy,
+      verifiedAt: values.verifiedAt,
+    },
+  });
+}
+
+export async function changeSpatialObservationStatus(id: number, status: "draft" | "reviewed" | "approved" | "rejected", verifiedBy: number) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.update(spatialObservations).set({
+    verificationStatus: status,
+    verifiedBy,
+    verifiedAt: status === "approved" || status === "rejected" ? new Date() : null,
+  }).where(eq(spatialObservations.id, id));
+}
+
+export async function deleteSpatialObservation(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.delete(spatialObservations).where(eq(spatialObservations.id, id));
 }
 
 export async function listPublicationDestinations() {

@@ -76,9 +76,10 @@
 
 /// <reference types="@types/google.maps" />
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePersistFn } from "@/hooks/usePersistFn";
 import { cn } from "@/lib/utils";
+import { LoaderCircle, MapPinned, RefreshCw } from "lucide-react";
 
 declare global {
   interface Window {
@@ -94,6 +95,10 @@ const MAPS_PROXY_URL = `${FORGE_BASE_URL}/v1/maps/proxy`;
 
 function loadMapScript() {
   return new Promise<void>((resolve, reject) => {
+    if (window.google?.maps) {
+      resolve();
+      return;
+    }
     const script = document.createElement("script");
     script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
     script.async = true;
@@ -117,6 +122,8 @@ interface MapViewProps {
   initialZoom?: number;
   onMapReady?: (map: google.maps.Map) => void;
   onMapError?: () => void;
+  onMapLoadingChange?: (loading: boolean) => void;
+  retryKey?: number;
 }
 
 export function MapView({
@@ -125,11 +132,16 @@ export function MapView({
   initialZoom = 12,
   onMapReady,
   onMapError,
+  onMapLoadingChange,
+  retryKey = 0,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   const init = usePersistFn(async () => {
+    setStatus("loading");
+    onMapLoadingChange?.(true);
     try {
       await loadMapScript();
       if (!mapContainer.current) {
@@ -148,16 +160,24 @@ export function MapView({
       if (onMapReady) {
         onMapReady(map.current);
       }
+      setStatus("ready");
+      onMapLoadingChange?.(false);
     } catch {
+      setStatus("error");
+      onMapLoadingChange?.(false);
       onMapError?.();
     }
   });
 
   useEffect(() => {
     init();
-  }, [init]);
+  }, [init, retryKey]);
 
   return (
-    <div ref={mapContainer} className={cn("w-full h-[500px]", className)} />
+    <div className={cn("relative h-[500px] w-full overflow-hidden bg-[#e7f1ee]", className)}>
+      <div ref={mapContainer} className="h-full w-full" />
+      {status === "loading" && <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(120deg,rgba(236,247,244,.96),rgba(218,238,231,.9),rgba(236,247,244,.96))] p-6"><div className="w-full max-w-sm text-center"><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-white text-[#0f766e] shadow-[0_10px_30px_rgba(10,91,86,.14)]"><LoaderCircle className="h-7 w-7 animate-spin" /></span><p className="mt-4 font-bold text-[#173f3c]">جاري تجهيز الخريطة التفاعلية</p><p className="mt-2 text-xs leading-6 text-slate-500">يتم تحميل طبقة الخرائط والتحقق من مواقع المدن المرجعية.</p><div className="mt-5 h-2 overflow-hidden rounded-full bg-white/85"><div className="h-full w-2/3 animate-[pulse_1.4s_ease-in-out_infinite] rounded-full bg-[#0f766e]" /></div><div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-[#60736e]"><MapPinned className="h-3.5 w-3.5" />بيانات مكانية موثقة فقط</div></div></div>}
+      {status === "error" && <div className="absolute inset-0 grid place-items-center bg-[#f7fbf9] p-6 text-center"><div><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-amber-50 text-amber-700"><RefreshCw className="h-5 w-5" /></span><p className="mt-3 text-sm font-bold text-[#173f3c]">تعذر تحميل طبقة الخريطة</p><p className="mt-1 text-xs text-slate-500">سيُعرض بديل مكاني تفاعلي للحفاظ على استمرار العمل.</p></div></div>}
+    </div>
   );
 }

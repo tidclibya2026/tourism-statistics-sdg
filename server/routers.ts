@@ -18,6 +18,36 @@ const statusSchema = z.enum(["draft", "published", "archived"]);
 const verificationSchema = z.enum(["draft", "reviewed", "approved", "rejected"]);
 const roleSchema = z.enum(["admin", "analyst", "viewer"]);
 const publicationStatusSchema = z.enum(["draft", "ready", "paused"]);
+const spatialAreaTypeSchema = z.enum(["region", "city"]);
+const boundaryStatusSchema = z.enum(["not_provided", "submitted", "verified"]);
+
+const spatialAreaInput = z.object({
+  code: z.string().trim().min(2).max(64),
+  name: z.string().trim().min(2).max(255),
+  type: spatialAreaTypeSchema,
+  parentId: z.number().int().positive().nullable().optional(),
+  geographicSource: z.string().trim().max(500).nullable().optional(),
+  boundaryReferenceTitle: z.string().trim().max(255).nullable().optional(),
+  boundaryReferenceUrl: z.string().trim().url().max(500).nullable().optional(),
+  boundaryStatus: boundaryStatusSchema.default("not_provided"),
+  status: z.enum(["active", "archived"]).default("active"),
+}).superRefine((value, context) => {
+  if (value.boundaryStatus !== "not_provided" && (!value.boundaryReferenceTitle || !value.boundaryReferenceUrl)) {
+    context.addIssue({ code: "custom", path: ["boundaryReferenceUrl"], message: "يتطلب توثيق الحدود اسم المرجع ورابطه الرسمي." });
+  }
+});
+
+const spatialObservationInput = z.object({
+  spatialAreaId: z.number().int().positive(),
+  indicatorId: z.number().int().positive(),
+  year: z.number().int().min(1990).max(2100),
+  period: z.enum(["annual", "quarterly"]),
+  quarter: z.enum(["annual", "Q1", "Q2", "Q3", "Q4"]),
+  value: z.number().finite(),
+  targetValue: z.number().finite().nullable().optional(),
+  source: z.string().trim().min(3).max(500),
+  notes: z.string().trim().max(4000).optional(),
+});
 
 const analystProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   if (ctx.user.role !== "admin" && ctx.user.role !== "analyst") {
@@ -147,6 +177,50 @@ export const appRouter = router({
       indicatorId: z.number().int().positive().optional(),
       areaId: z.number().int().positive().optional(),
     }).optional()).query(({ input }) => db.getSpatialOverview(input)),
+    management: analystProcedure.query(() => db.getSpatialManagementData()),
+    createArea: adminProcedure.input(spatialAreaInput).mutation(async ({ ctx, input }) => {
+      if (input.parentId) {
+        const parent = await db.getSpatialAreaById(input.parentId);
+        if (!parent || parent.type !== "region") throw new TRPCError({ code: "BAD_REQUEST", message: "يجب أن ترتبط المدينة بإقليم موجود." });
+      }
+      return db.createSpatialArea({
+        ...input,
+        parentId: input.parentId ?? null,
+        geographicSource: input.geographicSource ?? null,
+        boundaryReferenceTitle: input.boundaryReferenceTitle ?? null,
+        boundaryReferenceUrl: input.boundaryReferenceUrl ?? null,
+        boundaryVerifiedBy: input.boundaryStatus === "verified" ? ctx.user.id : null,
+        boundaryVerifiedAt: input.boundaryStatus === "verified" ? new Date() : null,
+      });
+    }),
+    updateArea: adminProcedure.input(spatialAreaInput.partial().extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const { id, boundaryStatus, ...values } = input;
+      if (values.parentId) {
+        const parent = await db.getSpatialAreaById(values.parentId);
+        if (!parent || parent.type !== "region") throw new TRPCError({ code: "BAD_REQUEST", message: "يجب أن ترتبط المدينة بإقليم موجود." });
+      }
+      const updateValues = {
+        ...values,
+        ...(boundaryStatus ? {
+          boundaryStatus,
+          boundaryVerifiedBy: boundaryStatus === "verified" ? ctx.user.id : null,
+          boundaryVerifiedAt: boundaryStatus === "verified" ? new Date() : null,
+        } : {}),
+      };
+      return db.updateSpatialArea(id, updateValues);
+    }),
+    upsertObservation: analystProcedure.input(spatialObservationInput).mutation(async ({ ctx, input }) => {
+      if (input.period === "annual" && input.quarter !== "annual") throw new TRPCError({ code: "BAD_REQUEST", message: "القياس السنوي يتطلب الفترة annual." });
+      if (input.period === "quarterly" && input.quarter === "annual") throw new TRPCError({ code: "BAD_REQUEST", message: "القياس الربع سنوي يتطلب تحديد الربع." });
+      const [area, indicator] = await Promise.all([db.getSpatialAreaById(input.spatialAreaId), db.getIndicatorById(input.indicatorId)]);
+      if (!area || area.status !== "active") throw new TRPCError({ code: "NOT_FOUND", message: "الموقع المكاني المختار غير متاح." });
+      if (!indicator) throw new TRPCError({ code: "NOT_FOUND", message: "المؤشر المختار غير موجود." });
+      const unitErrors = validateUnitValues(indicator.unit, input.value, input.targetValue);
+      if (unitErrors.length) throw new TRPCError({ code: "BAD_REQUEST", message: unitErrors[0] });
+      return db.upsertSpatialObservation({ ...input, value: String(input.value), targetValue: input.targetValue === null ? null : input.targetValue === undefined ? undefined : String(input.targetValue), enteredBy: ctx.user.id, verificationStatus: "draft" });
+    }),
+    setObservationStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: verificationSchema })).mutation(({ ctx, input }) => db.changeSpatialObservationStatus(input.id, input.status, ctx.user.id)),
+    deleteObservation: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => db.deleteSpatialObservation(input.id)),
   }),
   publication: router({
     hub: protectedProcedure.query(() => db.getPublicationHubData()),

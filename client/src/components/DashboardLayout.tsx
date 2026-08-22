@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   Archive,
   MapPinned,
+  ClipboardPenLine,
   Send,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -43,6 +44,7 @@ const navigation: { icon: typeof LayoutDashboard; label: string; path: string; a
   { icon: Sparkles, label: "التنبؤ السياحي", path: "/forecast", access: ["admin", "analyst", "viewer"] },
   { icon: Archive, label: "الأرشيف التاريخي", path: "/archive", access: ["admin", "analyst", "viewer"] },
   { icon: MapPinned, label: "الأقاليم والمدن", path: "/spatial", access: ["admin", "analyst", "viewer"] },
+  { icon: ClipboardPenLine, label: "إدارة البيانات المكانية", path: "/spatial-management", access: ["admin", "analyst"] },
   { icon: GitCompareArrows, label: "مقارنة المؤشرات", path: "/compare", access: ["admin", "analyst", "viewer"] },
   { icon: FileUp, label: "استيراد البيانات", path: "/imports", access: ["admin", "analyst"] },
   { icon: FileBarChart, label: "التقارير والتصدير", path: "/reports", access: ["admin", "analyst", "viewer"] },
