@@ -25,6 +25,7 @@ function Router() {
     <Route path="/"><ProtectedPage><Home /></ProtectedPage></Route>
     <Route path="/indicators"><ProtectedPage><Indicators /></ProtectedPage></Route>
     <Route path="/data"><ProtectedPage><DataEntry /></ProtectedPage></Route>
+    <Route path="/data-entry"><ProtectedPage><DataEntry /></ProtectedPage></Route>
     <Route path="/forecast"><ProtectedPage><Forecast /></ProtectedPage></Route>
     <Route path="/archive"><ProtectedPage><HistoricalArchive /></ProtectedPage></Route>
     <Route path="/spatial"><ProtectedPage><SpatialExplorer /></ProtectedPage></Route>

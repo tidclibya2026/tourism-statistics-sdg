@@ -219,7 +219,20 @@ export const appRouter = router({
       if (unitErrors.length) throw new TRPCError({ code: "BAD_REQUEST", message: unitErrors[0] });
       return db.upsertSpatialObservation({ ...input, value: String(input.value), targetValue: input.targetValue === null ? null : input.targetValue === undefined ? undefined : String(input.targetValue), enteredBy: ctx.user.id, verificationStatus: "draft" });
     }),
-    setObservationStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: verificationSchema })).mutation(({ ctx, input }) => db.changeSpatialObservationStatus(input.id, input.status, ctx.user.id)),
+    setObservationStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["reviewed", "approved", "rejected"]), note: z.string().trim().max(2000).optional() })).mutation(async ({ ctx, input }) => {
+      const observation = await db.getSpatialObservationById(input.id);
+      if (!observation) throw new TRPCError({ code: "NOT_FOUND", message: "القياس المكاني غير موجود." });
+      if (input.status === "reviewed") {
+        if (observation.verificationStatus !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "لا يمكن إرسال القياس إلى المراجعة إلا من حالة المسودة." });
+        if (observation.enteredBy === ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "يلزم أن يراجع القياس محلل مستقل عن مُدخله." });
+      }
+      if (input.status === "approved") {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "اعتماد القياسات للنشر محصور بدور المسؤول." });
+        if (observation.verificationStatus !== "reviewed") throw new TRPCError({ code: "BAD_REQUEST", message: "لا يمكن الاعتماد قبل إتمام مرحلة المراجعة." });
+      }
+      if (input.status === "rejected" && ctx.user.role !== "admin" && observation.enteredBy === ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "لا يمكن رفض قياسك الشخصي دون مراجع مستقل." });
+      return db.moveSpatialObservationStatus(input.id, input.status, ctx.user.id, input.note);
+    }),
     deleteObservation: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => db.deleteSpatialObservation(input.id)),
   }),
   publication: router({

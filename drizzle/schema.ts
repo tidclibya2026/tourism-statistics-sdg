@@ -131,6 +131,23 @@ export const spatialObservations = mysqlTable(
   ],
 );
 
+export const spatialObservationReviewEvents = mysqlTable(
+  "spatialObservationReviewEvents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    spatialObservationId: int("spatialObservationId").notNull().references(() => spatialObservations.id, { onDelete: "cascade" }),
+    fromStatus: mysqlEnum("fromStatus", ["draft", "reviewed", "approved", "rejected"]),
+    toStatus: mysqlEnum("toStatus", ["draft", "reviewed", "approved", "rejected"]).notNull(),
+    note: text("note"),
+    actedBy: int("actedBy").references(() => users.id, { onDelete: "set null" }),
+    actedAt: timestamp("actedAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("spatial_review_events_observation_idx").on(table.spatialObservationId),
+    index("spatial_review_events_status_idx").on(table.toStatus),
+  ],
+);
+
 export const publicationDestinations = mysqlTable(
   "publicationDestinations",
   {

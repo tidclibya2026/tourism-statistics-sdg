@@ -12,6 +12,7 @@ import {
   indicators,
   publicationDestinations,
   spatialAreas,
+  spatialObservationReviewEvents,
   spatialObservations,
   users,
 } from "../drizzle/schema";
@@ -259,7 +260,7 @@ export async function getSpatialOverview(filters?: SpatialFilters) {
 export async function getSpatialManagementData() {
   const db = await getDb();
   if (!db) return { areas: [], indicators: [], observations: [] };
-  const [areas, publishedIndicators, observations] = await Promise.all([
+  const [areas, publishedIndicators, observations, reviewEvents] = await Promise.all([
     db.select().from(spatialAreas).orderBy(asc(spatialAreas.type), asc(spatialAreas.name)),
     listIndicators({ status: "published" }),
     db.select({ observation: spatialObservations, indicator: indicators, area: spatialAreas })
@@ -267,8 +268,18 @@ export async function getSpatialManagementData() {
       .innerJoin(indicators, eq(spatialObservations.indicatorId, indicators.id))
       .innerJoin(spatialAreas, eq(spatialObservations.spatialAreaId, spatialAreas.id))
       .orderBy(desc(spatialObservations.year), desc(spatialObservations.updatedAt)),
+    db.select({ event: spatialObservationReviewEvents, actor: users })
+      .from(spatialObservationReviewEvents)
+      .leftJoin(users, eq(spatialObservationReviewEvents.actedBy, users.id))
+      .orderBy(desc(spatialObservationReviewEvents.actedAt)),
   ]);
   const areaById = new Map(areas.map((area) => [area.id, area]));
+  const eventsByObservation = new Map<number, { id: number; fromStatus: "draft" | "reviewed" | "approved" | "rejected" | null; toStatus: "draft" | "reviewed" | "approved" | "rejected"; note: string | null; actedAt: Date; actorName: string | null }[]>();
+  reviewEvents.forEach(({ event, actor }) => {
+    const history = eventsByObservation.get(event.spatialObservationId) ?? [];
+    history.push({ id: event.id, fromStatus: event.fromStatus, toStatus: event.toStatus, note: event.note, actedAt: event.actedAt, actorName: actor?.name ?? null });
+    eventsByObservation.set(event.spatialObservationId, history);
+  });
   return {
     areas: areas.map((area) => ({ ...area, parentName: area.parentId ? areaById.get(area.parentId)?.name ?? null : null })),
     indicators: publishedIndicators,
@@ -280,6 +291,7 @@ export async function getSpatialManagementData() {
       indicatorName: row.indicator.name,
       unit: row.indicator.unit,
       indicatorCode: row.indicator.code,
+      reviewHistory: eventsByObservation.get(row.observation.id) ?? [],
     })),
   };
 }
@@ -307,6 +319,14 @@ export async function updateSpatialArea(id: number, values: Partial<InsertSpatia
 export async function upsertSpatialObservation(values: InsertSpatialObservation) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const quarter = values.quarter ?? "annual";
+  const existing = await db.select().from(spatialObservations).where(and(
+    eq(spatialObservations.spatialAreaId, values.spatialAreaId),
+    eq(spatialObservations.indicatorId, values.indicatorId),
+    eq(spatialObservations.year, values.year),
+    eq(spatialObservations.period, values.period),
+    eq(spatialObservations.quarter, quarter),
+  )).limit(1);
   await db.insert(spatialObservations).values(values).onDuplicateKeyUpdate({
     set: {
       value: values.value,
@@ -319,16 +339,49 @@ export async function upsertSpatialObservation(values: InsertSpatialObservation)
       verifiedAt: values.verifiedAt,
     },
   });
+  const stored = await db.select().from(spatialObservations).where(and(
+    eq(spatialObservations.spatialAreaId, values.spatialAreaId),
+    eq(spatialObservations.indicatorId, values.indicatorId),
+    eq(spatialObservations.year, values.year),
+    eq(spatialObservations.period, values.period),
+    eq(spatialObservations.quarter, quarter),
+  )).limit(1);
+  const observation = stored[0];
+  if (!observation) throw new Error("تعذر إيجاد القياس المكاني بعد الحفظ.");
+  await db.insert(spatialObservationReviewEvents).values({
+    spatialObservationId: observation.id,
+    fromStatus: existing[0]?.verificationStatus ?? null,
+    toStatus: "draft",
+    note: existing[0] ? "تم تحديث القياس وإعادته إلى المسودة للمراجعة المستقلة." : "تم إنشاء القياس كمسودة بانتظار المراجعة.",
+    actedBy: values.enteredBy ?? null,
+  });
+  return observation.id;
 }
 
-export async function changeSpatialObservationStatus(id: number, status: "draft" | "reviewed" | "approved" | "rejected", verifiedBy: number) {
+export async function getSpatialObservationById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(spatialObservations).where(eq(spatialObservations.id, id)).limit(1);
+  return result[0];
+}
+
+export async function moveSpatialObservationStatus(id: number, status: "reviewed" | "approved" | "rejected", actedBy: number, note?: string) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const current = await getSpatialObservationById(id);
+  if (!current) throw new Error("القياس المكاني غير موجود.");
   await db.update(spatialObservations).set({
     verificationStatus: status,
-    verifiedBy,
+    verifiedBy: status === "approved" || status === "rejected" ? actedBy : null,
     verifiedAt: status === "approved" || status === "rejected" ? new Date() : null,
   }).where(eq(spatialObservations.id, id));
+  await db.insert(spatialObservationReviewEvents).values({
+    spatialObservationId: id,
+    fromStatus: current.verificationStatus,
+    toStatus: status,
+    note: note ?? null,
+    actedBy,
+  });
 }
 
 export async function deleteSpatialObservation(id: number) {

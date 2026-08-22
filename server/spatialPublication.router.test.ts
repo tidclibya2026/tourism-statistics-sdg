@@ -7,7 +7,9 @@ const dbMock = vi.hoisted(() => ({
   getPublicationHubData: vi.fn(),
   getSpatialAreaById: vi.fn(),
   getSpatialManagementData: vi.fn(),
+  getSpatialObservationById: vi.fn(),
   getSpatialOverview: vi.fn(),
+  moveSpatialObservationStatus: vi.fn(),
   upsertSpatialObservation: vi.fn(),
   updatePublicationDestinationStatus: vi.fn(),
 }));
@@ -83,5 +85,28 @@ describe("spatial and publication routers", () => {
     await expect(admin.spatial.createArea(payload)).resolves.toBe(17);
     expect(dbMock.createSpatialArea).toHaveBeenCalledWith(expect.objectContaining({ boundaryStatus: "verified", boundaryVerifiedBy: 7, boundaryVerifiedAt: expect.any(Date) }));
     await expect(analyst.spatial.createArea(payload)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("requires an independent reviewer before an administrator can approve a spatial observation", async () => {
+    dbMock.getSpatialObservationById.mockResolvedValue({ id: 31, verificationStatus: "draft", enteredBy: 8 });
+    dbMock.moveSpatialObservationStatus.mockResolvedValue(undefined);
+    const analyst = appRouter.createCaller(context("analyst"));
+    const admin = appRouter.createCaller(context("admin"));
+
+    await analyst.spatial.setObservationStatus({ id: 31, status: "reviewed", note: "تمت مطابقة المصدر." });
+    expect(dbMock.moveSpatialObservationStatus).toHaveBeenCalledWith(31, "reviewed", 7, "تمت مطابقة المصدر.");
+
+    dbMock.getSpatialObservationById.mockResolvedValue({ id: 31, verificationStatus: "reviewed", enteredBy: 8 });
+    await admin.spatial.setObservationStatus({ id: 31, status: "approved" });
+    expect(dbMock.moveSpatialObservationStatus).toHaveBeenCalledWith(31, "approved", 7, undefined);
+  });
+
+  it("prevents a contributor from reviewing their own spatial observation or skipping review", async () => {
+    dbMock.getSpatialObservationById.mockResolvedValue({ id: 32, verificationStatus: "draft", enteredBy: 7 });
+    const analyst = appRouter.createCaller(context("analyst"));
+    const admin = appRouter.createCaller(context("admin"));
+
+    await expect(analyst.spatial.setObservationStatus({ id: 32, status: "reviewed" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(admin.spatial.setObservationStatus({ id: 32, status: "approved" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
