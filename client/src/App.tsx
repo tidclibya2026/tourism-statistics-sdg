@@ -12,6 +12,8 @@ import Imports from "./pages/Imports";
 import Indicators from "./pages/Indicators";
 import NotFound from "./pages/NotFound";
 import Reports from "./pages/Reports";
+import PublicationHub from "./pages/PublicationHub";
+import SpatialExplorer from "./pages/SpatialExplorer";
 import Users from "./pages/Users";
 import { Route, Switch } from "wouter";
 
@@ -24,9 +26,11 @@ function Router() {
     <Route path="/data"><ProtectedPage><DataEntry /></ProtectedPage></Route>
     <Route path="/forecast"><ProtectedPage><Forecast /></ProtectedPage></Route>
     <Route path="/archive"><ProtectedPage><HistoricalArchive /></ProtectedPage></Route>
+    <Route path="/spatial"><ProtectedPage><SpatialExplorer /></ProtectedPage></Route>
     <Route path="/compare"><ProtectedPage><Compare /></ProtectedPage></Route>
     <Route path="/imports"><ProtectedPage><Imports /></ProtectedPage></Route>
     <Route path="/reports"><ProtectedPage><Reports /></ProtectedPage></Route>
+    <Route path="/publication"><ProtectedPage><PublicationHub /></ProtectedPage></Route>
     <Route path="/users"><ProtectedPage><Users /></ProtectedPage></Route>
     <Route path="/404" component={NotFound} />
     <Route component={NotFound} />

@@ -28,6 +28,8 @@ import {
   Settings2,
   ShieldCheck,
   Archive,
+  MapPinned,
+  Send,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -40,9 +42,11 @@ const navigation: { icon: typeof LayoutDashboard; label: string; path: string; a
   { icon: Database, label: "إدخال البيانات", path: "/data", access: ["admin", "analyst", "viewer"] },
   { icon: Sparkles, label: "التنبؤ السياحي", path: "/forecast", access: ["admin", "analyst", "viewer"] },
   { icon: Archive, label: "الأرشيف التاريخي", path: "/archive", access: ["admin", "analyst", "viewer"] },
+  { icon: MapPinned, label: "الأقاليم والمدن", path: "/spatial", access: ["admin", "analyst", "viewer"] },
   { icon: GitCompareArrows, label: "مقارنة المؤشرات", path: "/compare", access: ["admin", "analyst", "viewer"] },
   { icon: FileUp, label: "استيراد البيانات", path: "/imports", access: ["admin", "analyst"] },
   { icon: FileBarChart, label: "التقارير والتصدير", path: "/reports", access: ["admin", "analyst", "viewer"] },
+  { icon: Send, label: "مركز النشر الموحد", path: "/publication", access: ["admin", "analyst", "viewer"] },
   { icon: Settings2, label: "المستخدمون والصلاحيات", path: "/users", access: ["admin"] },
 ];
 

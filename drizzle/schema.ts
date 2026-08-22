@@ -78,6 +78,70 @@ export const indicatorObservations = mysqlTable(
   ],
 );
 
+export const spatialAreas = mysqlTable(
+  "spatialAreas",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    type: mysqlEnum("type", ["region", "city"]).notNull(),
+    parentId: int("parentId"),
+    geographicSource: varchar("geographicSource", { length: 500 }),
+    status: mysqlEnum("status", ["active", "archived"]).default("active").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("spatial_areas_code_unique").on(table.code),
+    index("spatial_areas_parent_idx").on(table.parentId),
+    index("spatial_areas_type_idx").on(table.type),
+  ],
+);
+
+export const spatialObservations = mysqlTable(
+  "spatialObservations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    spatialAreaId: int("spatialAreaId").notNull().references(() => spatialAreas.id, { onDelete: "restrict" }),
+    indicatorId: int("indicatorId").notNull().references(() => indicators.id, { onDelete: "restrict" }),
+    year: int("year").notNull(),
+    period: mysqlEnum("period", ["annual", "quarterly"]).notNull(),
+    quarter: mysqlEnum("quarter", ["annual", "Q1", "Q2", "Q3", "Q4"]).default("annual").notNull(),
+    value: decimal("value", { precision: 18, scale: 4 }).notNull(),
+    targetValue: decimal("targetValue", { precision: 18, scale: 4 }),
+    source: varchar("source", { length: 500 }),
+    verificationStatus: mysqlEnum("verificationStatus", ["draft", "reviewed", "approved", "rejected"]).default("draft").notNull(),
+    notes: text("notes"),
+    enteredBy: int("enteredBy").references(() => users.id, { onDelete: "set null" }),
+    verifiedBy: int("verifiedBy").references(() => users.id, { onDelete: "set null" }),
+    verifiedAt: timestamp("verifiedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("spatial_observations_period_unique").on(table.spatialAreaId, table.indicatorId, table.year, table.period, table.quarter),
+    index("spatial_observations_area_idx").on(table.spatialAreaId),
+    index("spatial_observations_indicator_idx").on(table.indicatorId),
+    index("spatial_observations_status_idx").on(table.verificationStatus),
+  ],
+);
+
+export const publicationDestinations = mysqlTable(
+  "publicationDestinations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    code: mysqlEnum("code", ["visit_libya", "libya_atlas"]).notNull(),
+    name: varchar("name", { length: 128 }).notNull(),
+    description: text("description"),
+    deliveryMode: mysqlEnum("deliveryMode", ["api_contract"]).default("api_contract").notNull(),
+    status: mysqlEnum("status", ["draft", "ready", "paused"]).default("draft").notNull(),
+    updatedBy: int("updatedBy").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("publication_destinations_code_unique").on(table.code)],
+);
+
 export const importJobs = mysqlTable("importJobs", {
   id: int("id").autoincrement().primaryKey(),
   fileName: varchar("fileName", { length: 255 }).notNull(),
@@ -112,5 +176,10 @@ export type Indicator = typeof indicators.$inferSelect;
 export type InsertIndicator = typeof indicators.$inferInsert;
 export type IndicatorObservation = typeof indicatorObservations.$inferSelect;
 export type InsertIndicatorObservation = typeof indicatorObservations.$inferInsert;
+export type SpatialArea = typeof spatialAreas.$inferSelect;
+export type InsertSpatialArea = typeof spatialAreas.$inferInsert;
+export type SpatialObservation = typeof spatialObservations.$inferSelect;
+export type InsertSpatialObservation = typeof spatialObservations.$inferInsert;
+export type PublicationDestination = typeof publicationDestinations.$inferSelect;
 export type ImportJob = typeof importJobs.$inferSelect;
 export type ImportIssue = typeof importIssues.$inferSelect;

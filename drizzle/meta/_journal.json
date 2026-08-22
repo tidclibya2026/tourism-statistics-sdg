@@ -22,6 +22,13 @@
       "when": 1787322855051,
       "tag": "0002_left_gladiator",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1787361209749,
+      "tag": "0003_purple_argent",
+      "breakpoints": true
     }
   ]
 }

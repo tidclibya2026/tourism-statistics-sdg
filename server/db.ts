@@ -8,6 +8,9 @@ import {
   importJobs,
   indicatorObservations,
   indicators,
+  publicationDestinations,
+  spatialAreas,
+  spatialObservations,
   users,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -176,6 +179,171 @@ export async function getHistoricalArchiveData() {
       }))
       .sort((a, b) => a.year - b.year || a.indicatorName.localeCompare(b.indicatorName, "ar")),
   };
+}
+
+type SpatialFilters = {
+  year?: number;
+  indicatorId?: number;
+  areaId?: number;
+};
+
+export async function getSpatialOverview(filters?: SpatialFilters) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      summary: { regions: 0, cities: 0, approvedObservations: 0, latestYear: null as number | null },
+      regions: [],
+      cities: [],
+      indicators: [],
+      observations: [],
+      availableYears: [],
+    };
+  }
+
+  const [areas, publishedIndicators, rawObservations] = await Promise.all([
+    db.select().from(spatialAreas).where(eq(spatialAreas.status, "active")).orderBy(asc(spatialAreas.type), asc(spatialAreas.name)),
+    listIndicators({ status: "published" }),
+    db.select({ observation: spatialObservations, indicator: indicators, area: spatialAreas })
+      .from(spatialObservations)
+      .innerJoin(indicators, eq(spatialObservations.indicatorId, indicators.id))
+      .innerJoin(spatialAreas, eq(spatialObservations.spatialAreaId, spatialAreas.id)),
+  ]);
+
+  const areaById = new Map(areas.map((area) => [area.id, area]));
+  const approved = rawObservations
+    .filter((row) => row.observation.verificationStatus === "approved")
+    .filter((row) => row.observation.period === "annual" && row.observation.quarter === "annual")
+    .filter((row) => !filters?.year || row.observation.year === filters.year)
+    .filter((row) => !filters?.indicatorId || row.indicator.id === filters.indicatorId)
+    .filter((row) => !filters?.areaId || row.area.id === filters.areaId);
+
+  const regions = areas.filter((area) => area.type === "region");
+  const cities = areas
+    .filter((area) => area.type === "city")
+    .map((city) => ({ ...city, parentName: city.parentId ? areaById.get(city.parentId)?.name ?? null : null }));
+  const availableYears = Array.from(new Set(approved.map((row) => row.observation.year))).sort((a, b) => b - a);
+
+  return {
+    summary: {
+      regions: regions.length,
+      cities: cities.length,
+      approvedObservations: approved.length,
+      latestYear: availableYears[0] ?? null,
+    },
+    regions,
+    cities,
+    indicators: publishedIndicators,
+    observations: approved
+      .map((row) => ({
+        id: row.observation.id,
+        areaId: row.area.id,
+        areaCode: row.area.code,
+        areaName: row.area.name,
+        areaType: row.area.type,
+        parentName: row.area.parentId ? areaById.get(row.area.parentId)?.name ?? null : null,
+        indicatorId: row.indicator.id,
+        indicatorCode: row.indicator.code,
+        indicatorName: row.indicator.name,
+        unit: row.indicator.unit,
+        year: row.observation.year,
+        value: Number(row.observation.value),
+        source: row.observation.source,
+      }))
+      .sort((a, b) => b.year - a.year || a.areaName.localeCompare(b.areaName, "ar")),
+    availableYears,
+  };
+}
+
+export async function listPublicationDestinations() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(publicationDestinations).orderBy(asc(publicationDestinations.name));
+}
+
+export async function getPublicationHubData() {
+  const [destinations, spatial, national] = await Promise.all([
+    listPublicationDestinations(),
+    getSpatialOverview(),
+    listObservations({ status: "approved" }),
+  ]);
+  const annualNational = national.filter((row) => row.observation.period === "annual" && row.observation.quarter === "annual");
+  const latestYear = annualNational.reduce((latest, row) => Math.max(latest, row.observation.year), 0);
+  return {
+    destinations,
+    summary: {
+      nationalApproved: annualNational.length,
+      spatialApproved: spatial.summary.approvedObservations,
+      activeSpatialAreas: spatial.summary.regions + spatial.summary.cities,
+      latestYear: latestYear || null,
+    },
+    contract: {
+      version: "v1",
+      status: "إعداد داخلي",
+      access: "تعاقدي بعد تحديد عنوان الاستقبال وصلاحيات التكامل لكل منصة",
+      fields: ["indicator_code", "indicator_name", "year", "period", "value", "unit", "area_code", "area_name", "source", "verification_status"],
+      qualityRule: "لا تشمل الحزمة إلا القياسات المعتمدة؛ وتبقى البيانات المكانية فارغة حتى اعتماد قياسات منسوبة إلى منطقة أو مدينة.",
+    },
+  };
+}
+
+export async function getPublicationFeed(destinationCode: "visit_libya" | "libya_atlas") {
+  const destination = (await listPublicationDestinations()).find((item) => item.code === destinationCode);
+  if (!destination) throw new Error("وجهة النشر غير معرفة.");
+
+  if (destination.status !== "ready") {
+    return {
+      version: "v1",
+      ready: false,
+      destination: { code: destination.code, name: destination.name, status: destination.status },
+      records: [],
+      message: "لم تُجهز هذه الوجهة بعد للربط الخارجي.",
+    };
+  }
+
+  const [national, spatial] = await Promise.all([
+    listObservations({ status: "approved" }),
+    getSpatialOverview(),
+  ]);
+  const nationalRecords = national
+    .filter((row) => row.observation.period === "annual" && row.observation.quarter === "annual")
+    .map((row) => ({
+      indicator_code: row.indicator.code,
+      indicator_name: row.indicator.name,
+      year: row.observation.year,
+      period: row.observation.period,
+      value: Number(row.observation.value),
+      unit: row.indicator.unit,
+      area_code: null,
+      area_name: null,
+      source: row.observation.source,
+      verification_status: row.observation.verificationStatus,
+    }));
+  const spatialRecords = spatial.observations.map((row) => ({
+    indicator_code: row.indicatorCode,
+    indicator_name: row.indicatorName,
+    year: row.year,
+    period: "annual" as const,
+    value: row.value,
+    unit: row.unit,
+    area_code: row.areaCode,
+    area_name: row.areaName,
+    source: row.source,
+    verification_status: "approved" as const,
+  }));
+
+  return {
+    version: "v1",
+    ready: true,
+    destination: { code: destination.code, name: destination.name, status: destination.status },
+    records: [...nationalRecords, ...spatialRecords],
+    message: "حزمة موحدة من القياسات المعتمدة فقط.",
+  };
+}
+
+export async function updatePublicationDestinationStatus(id: number, status: "draft" | "ready" | "paused", updatedBy: number) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.update(publicationDestinations).set({ status, updatedBy }).where(eq(publicationDestinations.id, id));
 }
 
 export async function upsertObservation(values: InsertIndicatorObservation) {

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { adminProcedure, protectedProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { validateImportedObservations } from "./validation";
 import { calculateAnnualForecast } from "./forecast";
@@ -17,6 +17,7 @@ const sdgSchema = z.enum(["SDG 8", "SDG 11", "SDG 12", "SDG 14", "SDG 17"]);
 const statusSchema = z.enum(["draft", "published", "archived"]);
 const verificationSchema = z.enum(["draft", "reviewed", "approved", "rejected"]);
 const roleSchema = z.enum(["admin", "analyst", "viewer"]);
+const publicationStatusSchema = z.enum(["draft", "ready", "paused"]);
 
 const analystProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   if (ctx.user.role !== "admin" && ctx.user.role !== "analyst") {
@@ -139,6 +140,25 @@ export const appRouter = router({
   }),
   historical: router({
     overview: protectedProcedure.query(() => db.getHistoricalArchiveData()),
+  }),
+  spatial: router({
+    overview: protectedProcedure.input(z.object({
+      year: z.number().int().min(1990).max(2100).optional(),
+      indicatorId: z.number().int().positive().optional(),
+      areaId: z.number().int().positive().optional(),
+    }).optional()).query(({ input }) => db.getSpatialOverview(input)),
+  }),
+  publication: router({
+    hub: protectedProcedure.query(() => db.getPublicationHubData()),
+    feed: publicProcedure.input(z.object({ destination: z.enum(["visit_libya", "libya_atlas"]) })).query(async ({ input }) => {
+      try {
+        return await db.getPublicationFeed(input.destination);
+      } catch (error) {
+        throw new TRPCError({ code: "NOT_FOUND", message: error instanceof Error ? error.message : "تعذر تحميل حزمة النشر." });
+      }
+    }),
+    updateStatus: adminProcedure.input(z.object({ id: z.number().int().positive(), status: publicationStatusSchema })).mutation(({ ctx, input }) =>
+      db.updatePublicationDestinationStatus(input.id, input.status, ctx.user.id)),
   }),
   imports: router({
     history: protectedProcedure.query(() => db.listImportJobs()),
