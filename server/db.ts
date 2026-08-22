@@ -13,7 +13,7 @@ import {
 import { ENV } from "./_core/env";
 import { buildTargetPerformance } from "./dashboardMetrics";
 import { summarizeHistoricalArchive } from "./historicalArchive";
-import { historicalSourceRegistry } from "./historicalSourceRegistry";
+import { historicalOfficialPublisher, historicalSourceRegistry } from "./historicalSourceRegistry";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -156,6 +156,7 @@ export async function getHistoricalArchiveData() {
   const summary = summarizeHistoricalArchive(observations);
   return {
     ...summary,
+    officialPublisher: historicalOfficialPublisher,
     sourceRegistry: historicalSourceRegistry,
     indicators: historicalIndicators,
     observations: observations
