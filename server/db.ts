@@ -20,6 +20,7 @@ import { ENV } from "./_core/env";
 import { buildTargetPerformance } from "./dashboardMetrics";
 import { summarizeHistoricalArchive } from "./historicalArchive";
 import { historicalOfficialPublisher, historicalSourceRegistry } from "./historicalSourceRegistry";
+import { buildCityRankings } from "../shared/cityRankings";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -261,7 +262,7 @@ export async function getSpatialAreaDetail(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   const [area] = await db.select().from(spatialAreas).where(and(eq(spatialAreas.id, id), eq(spatialAreas.status, "active"))).limit(1);
-  if (!area) return undefined;
+  if (!area || area.type !== "city") return undefined;
   const areas = await db.select().from(spatialAreas).where(eq(spatialAreas.status, "active"));
   const areaById = new Map(areas.map((item) => [item.id, item]));
   const children = areas.filter((item) => item.parentId === area.id);
@@ -294,6 +295,15 @@ export async function getSpatialAreaDetail(id: number) {
     observations,
     summary: { approvedObservations: observations.length, latestYear: latest?.year ?? null, latestValue: latest?.value ?? null, latestUnit: latest?.unit ?? null, latestIndicatorName: latest?.indicatorName ?? null },
   };
+}
+
+export async function getCityRankings() {
+  const overview = await getSpatialOverview();
+  return buildCityRankings(
+    overview.cities.map((city) => ({ id: city.id, name: city.name, code: city.code })),
+    overview.indicators.map((indicator) => ({ id: indicator.id, code: indicator.code, name: indicator.name, unit: indicator.unit })),
+    overview.observations.map((row) => ({ areaId: row.areaId, areaType: row.areaType, indicatorId: row.indicatorId, year: row.year, value: row.value })),
+  );
 }
 
 export async function getSpatialManagementData() {

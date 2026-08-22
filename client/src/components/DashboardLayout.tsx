@@ -43,7 +43,7 @@ const navigation: { icon: typeof LayoutDashboard; label: string; path: string; a
   { icon: Database, label: "إدخال البيانات", path: "/data", access: ["admin", "analyst", "viewer"] },
   { icon: Sparkles, label: "التنبؤ السياحي", path: "/forecast", access: ["admin", "analyst", "viewer"] },
   { icon: Archive, label: "الأرشيف التاريخي", path: "/archive", access: ["admin", "analyst", "viewer"] },
-  { icon: MapPinned, label: "الأقاليم والمدن", path: "/spatial", access: ["admin", "analyst", "viewer"] },
+  { icon: MapPinned, label: "المدن السياحية", path: "/spatial", access: ["admin", "analyst", "viewer"] },
   { icon: ClipboardPenLine, label: "إدارة البيانات المكانية", path: "/spatial-management", access: ["admin", "analyst"] },
   { icon: GitCompareArrows, label: "مقارنة المؤشرات", path: "/compare", access: ["admin", "analyst", "viewer"] },
   { icon: FileUp, label: "استيراد البيانات", path: "/imports", access: ["admin", "analyst"] },

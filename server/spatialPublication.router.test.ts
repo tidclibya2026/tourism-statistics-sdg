@@ -7,6 +7,7 @@ const dbMock = vi.hoisted(() => ({
   getPublicationHubData: vi.fn(),
   getSpatialAreaById: vi.fn(),
   getSpatialAreaDetail: vi.fn(),
+  getCityRankings: vi.fn(),
   getSpatialManagementData: vi.fn(),
   getSpatialObservationById: vi.fn(),
   getSpatialOverview: vi.fn(),
@@ -46,6 +47,21 @@ describe("spatial and publication routers", () => {
 
     await expect(caller.spatial.detail({ areaId: 1 })).resolves.toMatchObject({ area: { name: "طرابلس التاريخية" } });
     expect(dbMock.getSpatialAreaDetail).toHaveBeenCalledWith(1);
+  });
+
+  it("hides non-city detail records from the public spatial detail flow", async () => {
+    dbMock.getSpatialAreaDetail.mockResolvedValue(undefined);
+    const caller = appRouter.createCaller(context("viewer"));
+
+    await expect(caller.spatial.detail({ areaId: 99 })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("returns city ranking boards to authenticated viewers", async () => {
+    dbMock.getCityRankings.mockResolvedValue([{ id: "tourists", label: "السياح", items: [] }]);
+    const caller = appRouter.createCaller(context("viewer"));
+
+    await expect(caller.spatial.cityRankings()).resolves.toEqual([{ id: "tourists", label: "السياح", items: [] }]);
+    expect(dbMock.getCityRankings).toHaveBeenCalledOnce();
   });
 
   it("returns the unified publication hub to authenticated users", async () => {

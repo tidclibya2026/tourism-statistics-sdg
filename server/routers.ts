@@ -182,6 +182,7 @@ export const appRouter = router({
       if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "الموقع المكاني غير موجود أو غير نشط." });
       return detail;
     }),
+    cityRankings: protectedProcedure.query(() => db.getCityRankings()),
     management: analystProcedure.query(() => db.getSpatialManagementData()),
     createArea: adminProcedure.input(spatialAreaInput).mutation(async ({ ctx, input }) => {
       if (input.parentId) {
