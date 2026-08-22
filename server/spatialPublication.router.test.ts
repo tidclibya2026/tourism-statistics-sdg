@@ -8,6 +8,7 @@ const dbMock = vi.hoisted(() => ({
   getSpatialAreaById: vi.fn(),
   getSpatialAreaDetail: vi.fn(),
   getCityRankings: vi.fn(),
+  getCityTrend: vi.fn(),
   getSpatialManagementData: vi.fn(),
   getSpatialObservationById: vi.fn(),
   getSpatialOverview: vi.fn(),
@@ -62,6 +63,14 @@ describe("spatial and publication routers", () => {
 
     await expect(caller.spatial.cityRankings()).resolves.toEqual([{ id: "tourists", label: "السياح", items: [] }]);
     expect(dbMock.getCityRankings).toHaveBeenCalledOnce();
+  });
+
+  it("returns a category-specific temporal city trend to authenticated viewers", async () => {
+    dbMock.getCityTrend.mockResolvedValue({ category: { id: "tourists" }, years: [], series: [] });
+    const caller = appRouter.createCaller(context("viewer"));
+
+    await expect(caller.spatial.cityTrend({ categoryId: "tourists" })).resolves.toEqual({ category: { id: "tourists" }, years: [], series: [] });
+    expect(dbMock.getCityTrend).toHaveBeenCalledWith("tourists");
   });
 
   it("returns the unified publication hub to authenticated users", async () => {

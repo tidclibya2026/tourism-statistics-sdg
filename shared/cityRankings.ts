@@ -7,13 +7,13 @@ export type CityRankingCategory = {
 
 export const cityRankingCategories: CityRankingCategory[] = [
   { id: "services", label: "الخدمات السياحية", description: "المطاعم والمقاهي السياحية", indicatorCode: "HIST-TOURISM-RESTAURANTS-CAFES" },
-  { id: "sites", label: "المواقع السياحية", description: "يتطلب مؤشراً مكانياً منشوراً للمواقع", indicatorCode: null },
+  { id: "sites", label: "المواقع السياحية", description: "عدد المواقع السياحية الموثقة", indicatorCode: "SPATIAL-TOURISM-SITES-COUNT" },
   { id: "visitors", label: "الزوار والنزلاء", description: "إجمالي النزلاء في مرافق الإيواء", indicatorCode: "HIST-ACCOMMODATION-GUESTS" },
   { id: "tourists", label: "السياح", description: "إجمالي السياح القادمين", indicatorCode: "HIST-ARRIVALS-TOTAL" },
   { id: "guides", label: "المرشدون", description: "المرشدون السياحيون", indicatorCode: "HIST-TOURISM-GUIDES" },
   { id: "employment", label: "العمالة", description: "العمالة في مرافق الإيواء", indicatorCode: "HIST-ACCOMMODATION-EMPLOYMENT" },
   { id: "businesses", label: "الشركات والمكاتب", description: "الشركات والمكاتب السياحية", indicatorCode: "HIST-TOURISM-BUSINESSES-COMBINED" },
-  { id: "investment", label: "الاستثمار السياحي", description: "يتطلب مؤشراً مالياً منشوراً للاستثمار", indicatorCode: null },
+  { id: "investment", label: "الاستثمار السياحي", description: "قيمة الاستثمار السياحي المعتمد", indicatorCode: "SPATIAL-TOURISM-INVESTMENT-LYD" },
 ];
 
 type City = { id: number; name: string; code: string };

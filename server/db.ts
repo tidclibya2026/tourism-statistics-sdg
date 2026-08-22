@@ -21,6 +21,7 @@ import { buildTargetPerformance } from "./dashboardMetrics";
 import { summarizeHistoricalArchive } from "./historicalArchive";
 import { historicalOfficialPublisher, historicalSourceRegistry } from "./historicalSourceRegistry";
 import { buildCityRankings } from "../shared/cityRankings";
+import { buildCityTrendSeries } from "../shared/cityTrends";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -304,6 +305,21 @@ export async function getCityRankings() {
     overview.indicators.map((indicator) => ({ id: indicator.id, code: indicator.code, name: indicator.name, unit: indicator.unit })),
     overview.observations.map((row) => ({ areaId: row.areaId, areaType: row.areaType, indicatorId: row.indicatorId, year: row.year, value: row.value })),
   );
+}
+
+export async function getCityTrend(categoryId: string) {
+  const overview = await getSpatialOverview();
+  const rankings = buildCityRankings(
+    overview.cities.map((city) => ({ id: city.id, name: city.name, code: city.code })),
+    overview.indicators.map((indicator) => ({ id: indicator.id, code: indicator.code, name: indicator.name, unit: indicator.unit })),
+    overview.observations.map((row) => ({ areaId: row.areaId, areaType: row.areaType, indicatorId: row.indicatorId, year: row.year, value: row.value })),
+  );
+  const category = rankings.find((item) => item.id === categoryId);
+  if (!category) throw new Error("فئة ترتيب المدن غير معرفة.");
+  if (!category.indicator) return { category, years: [], series: [] };
+  const relevant = overview.observations.filter((row) => row.areaType === "city" && row.indicatorId === category.indicator!.id);
+  const trend = buildCityTrendSeries(overview.cities.map((city) => ({ id: city.id, name: city.name })), relevant.map((row) => ({ areaId: row.areaId, areaType: row.areaType, year: row.year, value: row.value, unit: row.unit })));
+  return { category: { id: category.id, label: category.label, description: category.description, indicator: category.indicator, unit: category.unit }, ...trend };
 }
 
 export async function getSpatialManagementData() {

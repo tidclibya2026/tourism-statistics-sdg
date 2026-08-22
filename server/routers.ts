@@ -183,6 +183,13 @@ export const appRouter = router({
       return detail;
     }),
     cityRankings: protectedProcedure.query(() => db.getCityRankings()),
+    cityTrend: protectedProcedure.input(z.object({ categoryId: z.string().trim().min(1).max(64) })).query(async ({ input }) => {
+      try {
+        return await db.getCityTrend(input.categoryId);
+      } catch (error) {
+        throw new TRPCError({ code: "NOT_FOUND", message: error instanceof Error ? error.message : "تعذر تحميل السلسلة الزمنية للمدن." });
+      }
+    }),
     management: analystProcedure.query(() => db.getSpatialManagementData()),
     createArea: adminProcedure.input(spatialAreaInput).mutation(async ({ ctx, input }) => {
       if (input.parentId) {
