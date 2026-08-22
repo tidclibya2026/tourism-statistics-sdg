@@ -15,6 +15,7 @@ import Reports from "./pages/Reports";
 import PublicationHub from "./pages/PublicationHub";
 import SpatialExplorer from "./pages/SpatialExplorer";
 import SpatialManagement from "./pages/SpatialManagement";
+import SpatialDetail from "./pages/SpatialDetail";
 import Users from "./pages/Users";
 import { Route, Switch } from "wouter";
 
@@ -29,6 +30,7 @@ function Router() {
     <Route path="/forecast"><ProtectedPage><Forecast /></ProtectedPage></Route>
     <Route path="/archive"><ProtectedPage><HistoricalArchive /></ProtectedPage></Route>
     <Route path="/spatial"><ProtectedPage><SpatialExplorer /></ProtectedPage></Route>
+    <Route path="/spatial/:areaId"><ProtectedPage><SpatialDetail /></ProtectedPage></Route>
     <Route path="/spatial-management"><ProtectedPage><SpatialManagement /></ProtectedPage></Route>
     <Route path="/compare"><ProtectedPage><Compare /></ProtectedPage></Route>
     <Route path="/imports"><ProtectedPage><Imports /></ProtectedPage></Route>

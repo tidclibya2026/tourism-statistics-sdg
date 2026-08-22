@@ -177,6 +177,11 @@ export const appRouter = router({
       indicatorId: z.number().int().positive().optional(),
       areaId: z.number().int().positive().optional(),
     }).optional()).query(({ input }) => db.getSpatialOverview(input)),
+    detail: protectedProcedure.input(z.object({ areaId: z.number().int().positive() })).query(async ({ input }) => {
+      const detail = await db.getSpatialAreaDetail(input.areaId);
+      if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "الموقع المكاني غير موجود أو غير نشط." });
+      return detail;
+    }),
     management: analystProcedure.query(() => db.getSpatialManagementData()),
     createArea: adminProcedure.input(spatialAreaInput).mutation(async ({ ctx, input }) => {
       if (input.parentId) {

@@ -257,6 +257,45 @@ export async function getSpatialOverview(filters?: SpatialFilters) {
   };
 }
 
+export async function getSpatialAreaDetail(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const [area] = await db.select().from(spatialAreas).where(and(eq(spatialAreas.id, id), eq(spatialAreas.status, "active"))).limit(1);
+  if (!area) return undefined;
+  const areas = await db.select().from(spatialAreas).where(eq(spatialAreas.status, "active"));
+  const areaById = new Map(areas.map((item) => [item.id, item]));
+  const children = areas.filter((item) => item.parentId === area.id);
+  const linkedAreaIds = [area.id, ...children.map((item) => item.id)];
+  const rows = await db.select({ observation: spatialObservations, indicator: indicators, spatialArea: spatialAreas })
+    .from(spatialObservations)
+    .innerJoin(indicators, eq(spatialObservations.indicatorId, indicators.id))
+    .innerJoin(spatialAreas, eq(spatialObservations.spatialAreaId, spatialAreas.id));
+  const observations = rows
+    .filter((row) => linkedAreaIds.includes(row.spatialArea.id))
+    .filter((row) => row.observation.verificationStatus === "approved" && row.observation.period === "annual" && row.observation.quarter === "annual")
+    .map((row) => ({
+      id: row.observation.id,
+      areaId: row.spatialArea.id,
+      areaName: row.spatialArea.name,
+      parentName: row.spatialArea.parentId ? areaById.get(row.spatialArea.parentId)?.name ?? null : null,
+      indicatorName: row.indicator.name,
+      indicatorCode: row.indicator.code,
+      unit: row.indicator.unit,
+      year: row.observation.year,
+      value: Number(row.observation.value),
+      source: row.observation.source,
+      notes: row.observation.notes,
+    }))
+    .sort((a, b) => b.year - a.year || a.indicatorName.localeCompare(b.indicatorName, "ar"));
+  const latest = observations[0] ?? null;
+  return {
+    area: { ...area, parentName: area.parentId ? areaById.get(area.parentId)?.name ?? null : null },
+    children: children.map((item) => ({ id: item.id, code: item.code, name: item.name, type: item.type })),
+    observations,
+    summary: { approvedObservations: observations.length, latestYear: latest?.year ?? null, latestValue: latest?.value ?? null, latestUnit: latest?.unit ?? null, latestIndicatorName: latest?.indicatorName ?? null },
+  };
+}
+
 export async function getSpatialManagementData() {
   const db = await getDb();
   if (!db) return { areas: [], indicators: [], observations: [] };

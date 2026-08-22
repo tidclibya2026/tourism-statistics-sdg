@@ -6,6 +6,7 @@ const dbMock = vi.hoisted(() => ({
   getPublicationFeed: vi.fn(),
   getPublicationHubData: vi.fn(),
   getSpatialAreaById: vi.fn(),
+  getSpatialAreaDetail: vi.fn(),
   getSpatialManagementData: vi.fn(),
   getSpatialObservationById: vi.fn(),
   getSpatialOverview: vi.fn(),
@@ -37,6 +38,14 @@ describe("spatial and publication routers", () => {
 
     await expect(caller.spatial.overview({ year: 2025, indicatorId: 3, areaId: 5 })).resolves.toEqual({ summary: { approvedObservations: 0 } });
     expect(dbMock.getSpatialOverview).toHaveBeenCalledWith({ year: 2025, indicatorId: 3, areaId: 5 });
+  });
+
+  it("returns a spatial location detail only when the location is active", async () => {
+    dbMock.getSpatialAreaDetail.mockResolvedValue({ area: { id: 1, name: "طرابلس التاريخية" }, observations: [], summary: { approvedObservations: 0 } });
+    const caller = appRouter.createCaller(context("viewer"));
+
+    await expect(caller.spatial.detail({ areaId: 1 })).resolves.toMatchObject({ area: { name: "طرابلس التاريخية" } });
+    expect(dbMock.getSpatialAreaDetail).toHaveBeenCalledWith(1);
   });
 
   it("returns the unified publication hub to authenticated users", async () => {
