@@ -190,6 +190,24 @@ export const appRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: error instanceof Error ? error.message : "تعذر تحميل السلسلة الزمنية للمدن." });
       }
     }),
+    cityForecast: protectedProcedure.input(z.object({
+      areaId: z.number().int().positive(),
+      indicatorId: z.number().int().positive(),
+      horizon: z.number().int().min(1).max(15).default(5),
+      method: z.enum(["historical_cagr", "custom_rate"]).default("historical_cagr"),
+      customRate: z.number().finite().min(-0.99).max(2).optional(),
+    }).superRefine((value, context) => {
+      if (value.method === "custom_rate" && value.customRate === undefined) {
+        context.addIssue({ code: "custom", path: ["customRate"], message: "يتطلب المعدل المخصص إدخال نسبة نمو." });
+      }
+    })).query(async ({ input }) => {
+      try {
+        const { area, indicator, history } = await db.getApprovedAnnualCityHistory(input.areaId, input.indicatorId);
+        return { ...calculateAnnualForecast({ history, horizon: input.horizon, method: input.method, customRate: input.customRate }), area, indicator };
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "تعذر حساب تنبؤ المدينة." });
+      }
+    }),
     management: analystProcedure.query(() => db.getSpatialManagementData()),
     createArea: adminProcedure.input(spatialAreaInput).mutation(async ({ ctx, input }) => {
       if (input.parentId) {

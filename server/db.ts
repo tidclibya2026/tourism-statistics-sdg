@@ -322,6 +322,24 @@ export async function getCityTrend(categoryId: string) {
   return { category: { id: category.id, label: category.label, description: category.description, indicator: category.indicator, unit: category.unit }, ...trend };
 }
 
+export async function getApprovedAnnualCityHistory(areaId: number, indicatorId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const [area, indicator, rows] = await Promise.all([
+    getSpatialAreaById(areaId),
+    getIndicatorById(indicatorId),
+    db.select().from(spatialObservations).where(and(eq(spatialObservations.spatialAreaId, areaId), eq(spatialObservations.indicatorId, indicatorId))),
+  ]);
+  if (!area || area.status !== "active" || area.type !== "city") throw new Error("المدينة المختارة غير متاحة للتنبؤ.");
+  if (!indicator) throw new Error("المؤشر المختار غير موجود.");
+  const history = rows
+    .filter((row) => row.verificationStatus === "approved" && row.period === "annual" && row.quarter === "annual")
+    .map((row) => ({ year: row.year, value: Number(row.value) }))
+    .filter((row) => Number.isFinite(row.value))
+    .sort((a, b) => a.year - b.year);
+  return { area, indicator, history };
+}
+
 export async function getSpatialManagementData() {
   const db = await getDb();
   if (!db) return { areas: [], indicators: [], observations: [] };

@@ -11,6 +11,7 @@ import { buildLocationQuickStats, type LocationQuickStat } from "@shared/spatial
 import { exportSpatialPdf, exportSpatialPng } from "@/lib/spatialExport";
 import { CityRankingPanels } from "@/components/CityRankingPanels";
 import { CityTrendChart } from "@/components/CityTrendChart";
+import { CityForecastChart } from "@/components/CityForecastChart";
 import { Building2, Database, FileDown, ImageDown, MapPinned, Map as MapIcon, RefreshCw, Search, ShieldCheck, Trophy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -27,6 +28,9 @@ export default function SpatialExplorer() {
   const [compareSecondary, setCompareSecondary] = useState(all);
   const [highlightedCity, setHighlightedCity] = useState<number | null>(null);
   const [trendCategory, setTrendCategory] = useState("tourists");
+  const [forecastCity, setForecastCity] = useState(all);
+  const [forecastIndicator, setForecastIndicator] = useState(all);
+  const [forecastHorizon, setForecastHorizon] = useState(5);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [mapFailure, setMapFailure] = useState(false);
   const [mapLoading, setMapLoading] = useState(true);
@@ -41,6 +45,7 @@ export default function SpatialExplorer() {
   const { data: colorData } = trpc.spatial.overview.useQuery({ indicatorId: selectedIndicator === all ? undefined : Number(selectedIndicator) });
   const { data: rankings } = trpc.spatial.cityRankings.useQuery();
   const { data: trendData } = trpc.spatial.cityTrend.useQuery({ categoryId: trendCategory });
+  const cityForecast = trpc.spatial.cityForecast.useQuery({ areaId: Number(forecastCity === all ? 1 : forecastCity), indicatorId: Number(forecastIndicator === all ? 1 : forecastIndicator), horizon: forecastHorizon, method: "historical_cagr" }, { enabled: forecastCity !== all && forecastIndicator !== all, retry: false });
   const cities = data?.cities ?? [];
   const filteredCities = useMemo(() => cities.filter((city) => `${city.name} ${city.code}`.toLocaleLowerCase("ar").includes(locationQuery.trim().toLocaleLowerCase("ar"))), [cities, locationQuery]);
   const locationQuickStats = useMemo(() => buildLocationQuickStats(cities, cities, data?.observations ?? []), [cities, data?.observations]);
@@ -98,11 +103,12 @@ export default function SpatialExplorer() {
       <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]"><article className="overflow-hidden rounded-2xl border border-[#dce8e4] bg-white shadow-sm"><div className="flex items-center justify-between border-b border-[#e5eeeb] px-5 py-4"><div><h2 className="font-bold text-[#153c39]">خريطة المدن التفاعلية</h2><p className="mt-1 text-xs text-slate-500">انقر على المدينة لفتح تفاصيلها. اضغط بطاقة ترتيب لإبراز المدينة وتلوين الخريطة بالمؤشر المرتبط.</p></div><Badge className={`border-0 ${mapLoading ? "bg-amber-50 text-amber-700" : "bg-[#e7f2ee] text-[#0f766e]"}`}>{mapLoading ? "جاري التحميل" : `${filteredCities.length} مدن`}</Badge></div>{mapFailure ? <CityMapFallback cities={filteredCities} highlightedCity={highlightedCity} colorFor={colorScale.colorFor} onSelect={(id) => setLocation(`/spatial/${id}`)} onRetry={() => { setMapLoading(true); setMapFailure(false); setMapRetryKey((key) => key + 1); }} /> : <MapView className="h-[430px]" initialCenter={{ lat: 26.3351, lng: 17.2283 }} initialZoom={5} onMapReady={setMap} onMapError={() => setMapFailure(true)} onMapLoadingChange={setMapLoading} retryKey={mapRetryKey} />}</article><CityDirectory cities={filteredCities} onSelect={(id) => setLocation(`/spatial/${id}`)} /></section>
 
       <CityColorLegend scale={colorScale} selectedIndicator={selectedIndicator !== all} />
-      <CityRankingPanels rankings={rankings ?? []} highlightedCity={highlightedCity} onSelect={(cityId: number, indicatorId: number | null, categoryId: string) => { if (cityId > 0) setHighlightedCity(cityId); setTrendCategory(categoryId); if (indicatorId) setSelectedIndicator(String(indicatorId)); }} />
+      <CityRankingPanels rankings={rankings ?? []} highlightedCity={highlightedCity} onSelect={(cityId: number, indicatorId: number | null, categoryId: string) => { if (cityId > 0) { setHighlightedCity(cityId); setForecastCity(String(cityId)); } setTrendCategory(categoryId); if (indicatorId) { setSelectedIndicator(String(indicatorId)); setForecastIndicator(String(indicatorId)); } }} />
       <CityHoverGuide cities={filteredCities} summaries={locationQuickStats} onSelect={(id) => setLocation(`/spatial/${id}`)} />
       <div ref={spatialExportRef}><CityExportSummary cities={filteredCities} rankings={rankings ?? []} scale={colorScale} selectedYear={selectedYear} selectedIndicator={selectedIndicator} onExport={handleExport} isExporting={isExporting} /></div>
 
       <CityTrendChart trendData={trendData} rankings={rankings ?? []} selectedCategory={trendCategory} onCategory={setTrendCategory} cities={data?.cities ?? []} primary={comparePrimary} secondary={compareSecondary} onPrimary={setComparePrimary} onSecondary={setCompareSecondary} />
+      <CityForecastChart cities={data?.cities ?? []} indicators={data?.indicators ?? []} cityId={forecastCity} indicatorId={forecastIndicator} horizon={forecastHorizon} onCityId={setForecastCity} onIndicatorId={setForecastIndicator} onHorizon={setForecastHorizon} data={cityForecast.data} error={cityForecast.error?.message} loading={cityForecast.isFetching} />
       <section className="grid gap-5 xl:grid-cols-[.9fr_1.1fr]"><CityComparison cities={data?.cities ?? []} primary={comparePrimary} secondary={compareSecondary} onPrimary={setComparePrimary} onSecondary={setCompareSecondary} selectedYear={selectedYear} selectedIndicator={selectedIndicator} primaryRow={primaryRow} secondaryRow={secondaryRow} difference={comparisonDifference} /><CityObservationsTable observations={data?.observations ?? []} /></section>
     </>}
   </div>;
