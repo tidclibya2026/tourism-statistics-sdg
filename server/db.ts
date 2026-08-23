@@ -502,6 +502,27 @@ export async function reviewOfficialCityAccommodation2013Batch(actedBy: number, 
   return { identified: candidates.length, reviewed: reviewable.length, skippedSelfEntered: candidates.length - reviewable.length };
 }
 
+export async function approveOfficialCityAccommodation2013Batch(actedBy: number, note?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const candidates = await db.select().from(spatialObservations).where(and(
+    eq(spatialObservations.source, officialCityAccommodation2013Source),
+    eq(spatialObservations.year, officialCityAccommodation2013Year),
+    eq(spatialObservations.period, "annual"),
+    eq(spatialObservations.quarter, "annual"),
+    eq(spatialObservations.verificationStatus, "reviewed"),
+  ));
+  const auditNote = `اعتماد مسؤول لدفعة مرافق الإيواء العاملة حسب المدن لسنة 2013.${note ? ` ${note}` : ""}`;
+  const approvedAt = new Date();
+  await db.transaction(async (tx) => {
+    for (const observation of candidates) {
+      await tx.update(spatialObservations).set({ verificationStatus: "approved", verifiedBy: actedBy, verifiedAt: approvedAt }).where(eq(spatialObservations.id, observation.id));
+      await tx.insert(spatialObservationReviewEvents).values({ spatialObservationId: observation.id, fromStatus: "reviewed", toStatus: "approved", note: auditNote, actedBy });
+    }
+  });
+  return { identified: candidates.length, approved: candidates.length };
+}
+
 export async function deleteSpatialObservation(id: number) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
