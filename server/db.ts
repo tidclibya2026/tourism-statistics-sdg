@@ -416,10 +416,9 @@ export async function upsertSpatialObservation(values: InsertSpatialObservation)
       targetValue: values.targetValue,
       source: values.source,
       notes: values.notes,
-      enteredBy: values.enteredBy,
       verificationStatus: values.verificationStatus,
-      verifiedBy: values.verifiedBy,
-      verifiedAt: values.verifiedAt,
+      verifiedBy: null,
+      verifiedAt: null,
     },
   });
   const stored = await db.select().from(spatialObservations).where(and(
@@ -435,7 +434,7 @@ export async function upsertSpatialObservation(values: InsertSpatialObservation)
     spatialObservationId: observation.id,
     fromStatus: existing[0]?.verificationStatus ?? null,
     toStatus: "draft",
-    note: existing[0] ? "تم تحديث القياس وإعادته إلى المسودة للمراجعة المستقلة." : "تم إنشاء القياس كمسودة بانتظار المراجعة.",
+    note: existing[0] ? "تم تحديث القياس من قبل مُدخله وإعادته إلى المسودة للمراجعة المستقلة." : "تم إنشاء القياس كمسودة بانتظار المراجعة.",
     actedBy: values.enteredBy ?? null,
   });
   return observation.id;
@@ -445,6 +444,20 @@ export async function getSpatialObservationById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(spatialObservations).where(eq(spatialObservations.id, id)).limit(1);
+  return result[0];
+}
+
+export async function getSpatialObservationForPeriod(values: Pick<InsertSpatialObservation, "spatialAreaId" | "indicatorId" | "year" | "period" | "quarter">) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const quarter = values.quarter ?? "annual";
+  const result = await db.select().from(spatialObservations).where(and(
+    eq(spatialObservations.spatialAreaId, values.spatialAreaId),
+    eq(spatialObservations.indicatorId, values.indicatorId),
+    eq(spatialObservations.year, values.year),
+    eq(spatialObservations.period, values.period),
+    eq(spatialObservations.quarter, quarter),
+  )).limit(1);
   return result[0];
 }
 

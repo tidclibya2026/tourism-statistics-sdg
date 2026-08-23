@@ -248,6 +248,10 @@ export const appRouter = router({
       if (!indicator) throw new TRPCError({ code: "NOT_FOUND", message: "المؤشر المختار غير موجود." });
       const unitErrors = validateUnitValues(indicator.unit, input.value, input.targetValue);
       if (unitErrors.length) throw new TRPCError({ code: "BAD_REQUEST", message: unitErrors[0] });
+      const existing = await db.getSpatialObservationForPeriod(input);
+      if (existing && existing.enteredBy !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "لا يمكن تعديل قياس منسوب إلى مستخدم آخر. أكمل المراجعة المستقلة أو ارفض السجل مع ملاحظة للمُدخل." });
+      }
       return db.upsertSpatialObservation({ ...input, value: String(input.value), targetValue: input.targetValue === null ? null : input.targetValue === undefined ? undefined : String(input.targetValue), enteredBy: ctx.user.id, verificationStatus: "draft" });
     }),
     setObservationStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["reviewed", "approved", "rejected"]), note: z.string().trim().max(2000).optional() })).mutation(async ({ ctx, input }) => {

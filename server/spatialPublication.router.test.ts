@@ -11,6 +11,7 @@ const dbMock = vi.hoisted(() => ({
   getCityTrend: vi.fn(),
   getSpatialManagementData: vi.fn(),
   getSpatialObservationById: vi.fn(),
+  getSpatialObservationForPeriod: vi.fn(),
   getSpatialOverview: vi.fn(),
   moveSpatialObservationStatus: vi.fn(),
   upsertSpatialObservation: vi.fn(),
@@ -102,12 +103,23 @@ describe("spatial and publication routers", () => {
   it("stores spatial measurements as drafts after validating an active location and the indicator unit", async () => {
     dbMock.getSpatialAreaById.mockResolvedValue({ id: 8, status: "active", type: "city" });
     dbMock.getIndicatorById.mockResolvedValue({ id: 3, unit: "عدد" });
+    dbMock.getSpatialObservationForPeriod.mockResolvedValue(undefined);
     dbMock.upsertSpatialObservation.mockResolvedValue(undefined);
     const analyst = appRouter.createCaller(context("analyst"));
 
     await analyst.spatial.upsertObservation({ spatialAreaId: 8, indicatorId: 3, year: 2025, period: "annual", quarter: "annual", value: 240, targetValue: null, source: "تقرير رسمي", notes: "الصفحة 12" });
 
     expect(dbMock.upsertSpatialObservation).toHaveBeenCalledWith(expect.objectContaining({ spatialAreaId: 8, indicatorId: 3, value: "240", verificationStatus: "draft", enteredBy: 7 }));
+  });
+
+  it("prevents a reviewer from editing a spatial draft entered by another user", async () => {
+    dbMock.getSpatialAreaById.mockResolvedValue({ id: 8, status: "active", type: "city" });
+    dbMock.getIndicatorById.mockResolvedValue({ id: 3, unit: "عدد" });
+    dbMock.getSpatialObservationForPeriod.mockResolvedValue({ id: 44, enteredBy: 8, verificationStatus: "draft" });
+    const analyst = appRouter.createCaller(context("analyst"));
+
+    await expect(analyst.spatial.upsertObservation({ spatialAreaId: 8, indicatorId: 3, year: 2025, period: "annual", quarter: "annual", value: 240, targetValue: null, source: "تقرير رسمي", notes: "الصفحة 12" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(dbMock.upsertSpatialObservation).not.toHaveBeenCalled();
   });
 
   it("allows only an administrator to register a verified boundary reference", async () => {
