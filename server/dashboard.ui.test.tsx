@@ -9,6 +9,8 @@ const dashboardData = {
   availableYears: [2025],
   axisDistribution: [{ axis: "اقتصادي", count: 2 }, { axis: "اجتماعي", count: 0 }, { axis: "بيئي", count: 0 }],
   trendByYear: [{ year: 2025, observations: 4 }],
+  coverageByYear: [{ year: 2025, indicators: 2 }],
+  axisCoverageByYear: [{ year: 2025, اقتصادي: 4, اجتماعي: 0, بيئي: 0 }],
   targetPerformance: [{ indicatorId: 1, name: "الوافدون", code: "ARR", axis: "اقتصادي", unit: "عدد", year: 2025, actual: 100, target: 100, variance: 0, attainment: 100, status: "achieved" as const }],
   recent: [],
 };
@@ -43,6 +45,7 @@ describe("dashboard export and AI summary UI", () => {
     expect(screen.getByText("هدف التنمية")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Excel" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "PDF" })).toBeTruthy();
+    expect(screen.getByText("نطاق العرض المعتمد")).toBeTruthy();
     expect(screen.getByText(/الملخص التنفيذي/)).toBeTruthy();
     const sdgFilter = screen.getAllByRole("combobox")[3];
     fireEvent.pointerDown(sdgFilter, { button: 0, pointerType: "mouse" });

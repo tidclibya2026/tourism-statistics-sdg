@@ -652,6 +652,16 @@ export async function getDashboardData(filters?: { year?: number; axis?: "اقت
     year,
     observations: scopedApproved.filter((row) => row.observation.year === year && row.observation.period === "annual").length,
   }));
+  const coverageByYear = Array.from(new Set(scopedApproved.map((row) => row.observation.year))).sort().map((year) => ({
+    year,
+    indicators: new Set(scopedApproved.filter((row) => row.observation.year === year && row.observation.period === "annual").map((row) => row.observation.indicatorId)).size,
+  }));
+  const axisCoverageByYear = Array.from(new Set(scopedApproved.map((row) => row.observation.year))).sort().map((year) => ({
+    year,
+    اقتصادي: scopedApproved.filter((row) => row.observation.year === year && row.observation.period === "annual" && row.indicator.axis === "اقتصادي").length,
+    اجتماعي: scopedApproved.filter((row) => row.observation.year === year && row.observation.period === "annual" && row.indicator.axis === "اجتماعي").length,
+    بيئي: scopedApproved.filter((row) => row.observation.year === year && row.observation.period === "annual" && row.indicator.axis === "بيئي").length,
+  }));
   const targetPerformance = buildTargetPerformance(scopedApproved);
 
   return {
@@ -665,8 +675,10 @@ export async function getDashboardData(filters?: { year?: number; axis?: "اقت
     },
     axisDistribution,
     trendByYear,
+    coverageByYear,
+    axisCoverageByYear,
     latest,
-    recent: (filters?.year ? observations.filter((row) => row.observation.year === filters.year) : observations).slice(0, 8),
+    recent: (filters?.year ? approved.filter((row) => row.observation.year === filters.year) : approved).slice(0, 8),
     availableYears,
     targetPerformance,
   };
