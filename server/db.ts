@@ -22,6 +22,7 @@ import { summarizeHistoricalArchive } from "./historicalArchive";
 import { historicalOfficialPublisher, historicalSourceRegistry } from "./historicalSourceRegistry";
 import { buildCityRankings } from "../shared/cityRankings";
 import { buildCityTrendSeries } from "../shared/cityTrends";
+import { officialCityAccommodation2013Source, officialCityAccommodation2013Year } from "../shared/officialCityAccommodationBatch";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -478,6 +479,27 @@ export async function moveSpatialObservationStatus(id: number, status: "reviewed
     note: note ?? null,
     actedBy,
   });
+}
+
+export async function reviewOfficialCityAccommodation2013Batch(actedBy: number, note?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const candidates = await db.select().from(spatialObservations).where(and(
+    eq(spatialObservations.source, officialCityAccommodation2013Source),
+    eq(spatialObservations.year, officialCityAccommodation2013Year),
+    eq(spatialObservations.period, "annual"),
+    eq(spatialObservations.quarter, "annual"),
+    eq(spatialObservations.verificationStatus, "draft"),
+  ));
+  const reviewable = candidates.filter((observation) => observation.enteredBy !== actedBy);
+  const auditNote = `مراجعة مستقلة لدفعة مرافق الإيواء العاملة حسب المدن لسنة 2013.${note ? ` ${note}` : ""}`;
+  await db.transaction(async (tx) => {
+    for (const observation of reviewable) {
+      await tx.update(spatialObservations).set({ verificationStatus: "reviewed", verifiedBy: null, verifiedAt: null }).where(eq(spatialObservations.id, observation.id));
+      await tx.insert(spatialObservationReviewEvents).values({ spatialObservationId: observation.id, fromStatus: "draft", toStatus: "reviewed", note: auditNote, actedBy });
+    }
+  });
+  return { identified: candidates.length, reviewed: reviewable.length, skippedSelfEntered: candidates.length - reviewable.length };
 }
 
 export async function deleteSpatialObservation(id: number) {

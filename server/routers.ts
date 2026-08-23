@@ -268,6 +268,8 @@ export const appRouter = router({
       if (input.status === "rejected" && ctx.user.role !== "admin" && observation.enteredBy === ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "لا يمكن رفض قياسك الشخصي دون مراجع مستقل." });
       return db.moveSpatialObservationStatus(input.id, input.status, ctx.user.id, input.note);
     }),
+    reviewOfficialCityAccommodation2013Batch: analystProcedure.input(z.object({ confirmed: z.literal(true), note: z.string().trim().max(2000).optional() })).mutation(({ ctx, input }) =>
+      db.reviewOfficialCityAccommodation2013Batch(ctx.user.id, input.note)),
     deleteObservation: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => db.deleteSpatialObservation(input.id)),
   }),
   publication: router({

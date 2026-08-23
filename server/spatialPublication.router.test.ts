@@ -14,6 +14,7 @@ const dbMock = vi.hoisted(() => ({
   getSpatialObservationForPeriod: vi.fn(),
   getSpatialOverview: vi.fn(),
   moveSpatialObservationStatus: vi.fn(),
+  reviewOfficialCityAccommodation2013Batch: vi.fn(),
   upsertSpatialObservation: vi.fn(),
   updatePublicationDestinationStatus: vi.fn(),
 }));
@@ -154,5 +155,15 @@ describe("spatial and publication routers", () => {
 
     await expect(analyst.spatial.setObservationStatus({ id: 32, status: "reviewed" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(admin.spatial.setObservationStatus({ id: 32, status: "approved" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("lets an analyst confirm the constrained official city-accommodation batch only", async () => {
+    dbMock.reviewOfficialCityAccommodation2013Batch.mockResolvedValue({ identified: 123, reviewed: 123, skippedSelfEntered: 0 });
+    const analyst = appRouter.createCaller(context("analyst"));
+    const viewer = appRouter.createCaller(context("viewer"));
+
+    await expect(analyst.spatial.reviewOfficialCityAccommodation2013Batch({ confirmed: true, note: "تمت مطابقة الجدول والمصدر." })).resolves.toMatchObject({ reviewed: 123 });
+    expect(dbMock.reviewOfficialCityAccommodation2013Batch).toHaveBeenCalledWith(7, "تمت مطابقة الجدول والمصدر.");
+    await expect(viewer.spatial.reviewOfficialCityAccommodation2013Batch({ confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
