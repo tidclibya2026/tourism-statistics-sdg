@@ -84,6 +84,7 @@ import { LoaderCircle, MapPinned, RefreshCw } from "lucide-react";
 declare global {
   interface Window {
     google?: typeof google;
+    __tourismMapsLoadPromise?: Promise<void>;
   }
 }
 
@@ -92,27 +93,37 @@ const FORGE_BASE_URL =
   import.meta.env.VITE_FRONTEND_FORGE_API_URL ||
   "https://forge.butterfly-effect.dev";
 const MAPS_PROXY_URL = `${FORGE_BASE_URL}/v1/maps/proxy`;
+const MAPS_SCRIPT_ID = "tourism-google-maps-script";
 
 function loadMapScript() {
-  return new Promise<void>((resolve, reject) => {
-    if (window.google?.maps) {
-      resolve();
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
-    script.async = true;
-    script.crossOrigin = "anonymous";
-    script.onload = () => {
-      resolve();
-      script.remove(); // Clean up immediately
+  if (window.google?.maps?.Map) return Promise.resolve();
+  if (window.__tourismMapsLoadPromise) return window.__tourismMapsLoadPromise;
+
+  window.__tourismMapsLoadPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.getElementById(MAPS_SCRIPT_ID) as HTMLScriptElement | null;
+    const script = existing ?? document.createElement("script");
+    const resolveWhenReady = () => {
+      if (window.google?.maps?.Map) resolve();
+      else reject(new Error("Google Maps loaded without a map constructor"));
     };
-    script.onerror = () => {
-      script.remove();
+    const fail = () => {
+      window.__tourismMapsLoadPromise = undefined;
+      if (!existing) script.remove();
       reject(new Error("Failed to load Google Maps script"));
     };
-    document.head.appendChild(script);
+
+    script.addEventListener("load", resolveWhenReady, { once: true });
+    script.addEventListener("error", fail, { once: true });
+    if (!existing) {
+      script.id = MAPS_SCRIPT_ID;
+      script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
+      script.async = true;
+      script.crossOrigin = "anonymous";
+      document.head.appendChild(script);
+    }
   });
+
+  return window.__tourismMapsLoadPromise;
 }
 
 interface MapViewProps {
