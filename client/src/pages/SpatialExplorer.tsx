@@ -2,6 +2,7 @@ import { MapView } from "@/components/Map";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,12 +10,13 @@ import { trpc } from "@/lib/trpc";
 import { buildSpatialColorScale } from "@shared/spatialColorScale";
 import { buildLocationQuickStats, type LocationQuickStat } from "@shared/spatialQuickStats";
 import { detachMapMarkers } from "@shared/mapMarkers";
+import { addCityToComparison, cityMapQueryDefaults, selectComparisonPoint } from "@shared/cityMapInteraction";
 import { exportSpatialPdf, exportSpatialPng } from "@/lib/spatialExport";
 import { CityRankingPanels } from "@/components/CityRankingPanels";
 import { CityTrendChart } from "@/components/CityTrendChart";
 import { CityForecastChart } from "@/components/CityForecastChart";
 import { Building2, Database, FileDown, ImageDown, MapPinned, Map as MapIcon, RefreshCw, Search, ShieldCheck, Trophy } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -28,6 +30,7 @@ export default function SpatialExplorer() {
   const [comparePrimary, setComparePrimary] = useState(all);
   const [compareSecondary, setCompareSecondary] = useState(all);
   const [highlightedCity, setHighlightedCity] = useState<number | null>(null);
+  const [previewCityId, setPreviewCityId] = useState<number | null>(null);
   const [trendCategory, setTrendCategory] = useState("tourists");
   const [forecastCity, setForecastCity] = useState(all);
   const [forecastIndicator, setForecastIndicator] = useState(all);
@@ -38,22 +41,34 @@ export default function SpatialExplorer() {
   const [mapRetryKey, setMapRetryKey] = useState(0);
   const [isExporting, setIsExporting] = useState<"png" | "pdf" | null>(null);
   const markerRefs = useRef<google.maps.Marker[]>([]);
+  const geocodeCache = useRef<Map<number, google.maps.LatLngLiteral>>(new Map());
   const spatialExportRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
 
   const filters = useMemo(() => ({ year: selectedYear === all ? undefined : Number(selectedYear), indicatorId: selectedIndicator === all ? undefined : Number(selectedIndicator) }), [selectedIndicator, selectedYear]);
-  const { data, isLoading, isError, refetch } = trpc.spatial.overview.useQuery(filters);
-  const { data: colorData } = trpc.spatial.overview.useQuery({ indicatorId: selectedIndicator === all ? undefined : Number(selectedIndicator) });
-  const { data: rankings } = trpc.spatial.cityRankings.useQuery();
-  const { data: trendData } = trpc.spatial.cityTrend.useQuery({ categoryId: trendCategory });
-  const cityForecast = trpc.spatial.cityForecast.useQuery({ areaId: Number(forecastCity === all ? 1 : forecastCity), indicatorId: Number(forecastIndicator === all ? 1 : forecastIndicator), horizon: forecastHorizon, method: "historical_cagr" }, { enabled: forecastCity !== all && forecastIndicator !== all, retry: false });
+  const { data, isLoading, isError, refetch } = trpc.spatial.overview.useQuery(filters, cityMapQueryDefaults);
+  const { data: colorData } = trpc.spatial.overview.useQuery({ indicatorId: Number(selectedIndicator) }, { ...cityMapQueryDefaults, enabled: selectedIndicator !== all });
+  const { data: rankings } = trpc.spatial.cityRankings.useQuery(undefined, cityMapQueryDefaults);
+  const { data: trendData } = trpc.spatial.cityTrend.useQuery({ categoryId: trendCategory }, cityMapQueryDefaults);
+  const cityForecast = trpc.spatial.cityForecast.useQuery({ areaId: Number(forecastCity === all ? 1 : forecastCity), indicatorId: Number(forecastIndicator === all ? 1 : forecastIndicator), horizon: forecastHorizon, method: "historical_cagr" }, { ...cityMapQueryDefaults, enabled: forecastCity !== all && forecastIndicator !== all, retry: false });
   const cities = data?.cities ?? [];
-  const filteredCities = useMemo(() => cities.filter((city) => `${city.name} ${city.code}`.toLocaleLowerCase("ar").includes(locationQuery.trim().toLocaleLowerCase("ar"))), [cities, locationQuery]);
+  const deferredLocationQuery = useDeferredValue(locationQuery);
+  const filteredCities = useMemo(() => cities.filter((city) => `${city.name} ${city.code}`.toLocaleLowerCase("ar").includes(deferredLocationQuery.trim().toLocaleLowerCase("ar"))), [cities, deferredLocationQuery]);
   const locationQuickStats = useMemo(() => buildLocationQuickStats(cities, cities, data?.observations ?? []), [cities, data?.observations]);
   const colorScale = useMemo(() => buildSpatialColorScale(colorData?.observations ?? [], selectedIndicator !== all), [colorData?.observations, selectedIndicator]);
-  const primaryRow = data?.observations.find((row) => String(row.areaId) === comparePrimary);
-  const secondaryRow = data?.observations.find((row) => String(row.areaId) === compareSecondary);
+  const primaryRow = selectComparisonPoint(data?.observations ?? [], comparePrimary, selectedIndicator, selectedYear);
+  const secondaryRow = selectComparisonPoint(data?.observations ?? [], compareSecondary, selectedIndicator, selectedYear);
   const comparisonDifference = primaryRow && secondaryRow && primaryRow.unit === secondaryRow.unit ? primaryRow.value - secondaryRow.value : null;
+  const previewCity = cities.find((city) => city.id === previewCityId) ?? null;
+  const previewStat = previewCity ? locationQuickStats.get(previewCity.id) ?? emptyQuickStat() : emptyQuickStat();
+  const openQuickPreview = (cityId: number) => { setHighlightedCity(cityId); setPreviewCityId(cityId); };
+  const addPreviewCityToComparison = (cityId: number) => {
+    const next = addCityToComparison({ primary: comparePrimary, secondary: compareSecondary }, cityId);
+    setComparePrimary(next.primary);
+    setCompareSecondary(next.secondary);
+    setPreviewCityId(null);
+    toast.success("أضيفت المدينة إلى المقارنة.");
+  };
 
   const handleExport = async (format: "png" | "pdf") => {
     if (!spatialExportRef.current) return;
@@ -73,26 +88,37 @@ export default function SpatialExplorer() {
     if (filteredCities.length === 0) return;
     const geocoder = new window.google.maps.Geocoder();
     let cancelled = false;
+    const drawMarker = (city: typeof filteredCities[number], position: google.maps.LatLngLiteral) => {
+      if (cancelled) return;
+      try {
+        const stat = locationQuickStats.get(city.id) ?? emptyQuickStat();
+        const isHighlighted = city.id === highlightedCity;
+        const marker = new window.google.maps.Marker({ map, position, title: city.name, label: { text: city.name.slice(0, 1), color: "#ffffff", fontWeight: "700" }, icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: isHighlighted ? 15 : 11, fillColor: colorScale.colorFor(city.id), fillOpacity: 1, strokeColor: isHighlighted ? "#7c2d12" : "#ffffff", strokeWeight: isHighlighted ? 4 : 2 }, zIndex: isHighlighted ? 100 : undefined });
+        const info = new window.google.maps.InfoWindow({ content: mapQuickStatHtml(city.name, stat) });
+        marker.addListener("mouseover", () => info.open({ map, anchor: marker }));
+        marker.addListener("mouseout", () => info.close());
+        marker.addListener("click", () => { setHighlightedCity(city.id); setPreviewCityId(city.id); });
+        markerRefs.current.push(marker);
+      } catch {
+        // Keep the city directory and alternate map usable if the remote SDK
+        // rejects a stale marker during a refresh.
+      }
+    };
     filteredCities.forEach((city) => {
+      const cachedPosition = geocodeCache.current.get(city.id);
+      if (cachedPosition) {
+        drawMarker(city, cachedPosition);
+        return;
+      }
       geocoder.geocode({ address: `${city.name}، ليبيا` }, (results, status) => {
         if (cancelled || status !== "OK" || !results?.[0]?.geometry?.location) return;
-        try {
-          const stat = locationQuickStats.get(city.id) ?? emptyQuickStat();
-          const isHighlighted = city.id === highlightedCity;
-          const marker = new window.google.maps.Marker({ map, position: results[0].geometry.location, title: city.name, label: { text: city.name.slice(0, 1), color: "#ffffff", fontWeight: "700" }, icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: isHighlighted ? 15 : 11, fillColor: colorScale.colorFor(city.id), fillOpacity: 1, strokeColor: isHighlighted ? "#7c2d12" : "#ffffff", strokeWeight: isHighlighted ? 4 : 2 }, zIndex: isHighlighted ? 100 : undefined });
-          const info = new window.google.maps.InfoWindow({ content: mapQuickStatHtml(city.name, stat) });
-          marker.addListener("mouseover", () => info.open({ map, anchor: marker }));
-          marker.addListener("mouseout", () => info.close());
-          marker.addListener("click", () => setLocation(`/spatial/${city.id}`));
-          markerRefs.current.push(marker);
-        } catch {
-          // Keep the city directory and alternate map usable when a remote map SDK
-          // rejects a stale marker during a refresh.
-        }
+        const position = { lat: results[0].geometry.location.lat(), lng: results[0].geometry.location.lng() };
+        geocodeCache.current.set(city.id, position);
+        drawMarker(city, position);
       });
     });
     return () => { cancelled = true; markerRefs.current = detachMapMarkers(markerRefs.current) as google.maps.Marker[]; };
-  }, [colorScale, data, filteredCities, highlightedCity, locationQuickStats, map, setLocation]);
+  }, [colorScale, data, filteredCities, highlightedCity, locationQuickStats, map]);
 
   return <div className="space-y-6">
     <section className="relative overflow-hidden rounded-[2rem] bg-[#0d5b56] px-6 py-8 text-white shadow-[0_20px_55px_rgba(11,84,79,.18)] md:px-9"><div className="absolute -left-14 -top-14 h-52 w-52 rounded-full border-[28px] border-amber-300/15" /><div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-3xl"><p className="text-xs font-bold tracking-[.14em] text-amber-200">طبقة المدن السياحية</p><h1 className="mt-2 text-2xl font-bold md:text-3xl">المدن الأكثر قيمة في السياحة</h1><p className="mt-3 max-w-2xl text-sm leading-7 text-teal-50/90">عرض مدني مباشر للقياسات السياحية المعتمدة. تظهر كل فئة في ترتيب مستقل حتى لا تُجمع وحدات قياس مختلفة في قيمة واحدة.</p></div><div className="flex items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-xs text-teal-50"><ShieldCheck className="h-5 w-5 text-amber-200" /><span>الترتيب: أحدث قياس معتمد لكل مدينة وفئة</span></div></div></section>
@@ -102,22 +128,23 @@ export default function SpatialExplorer() {
     {isLoading ? <section className="grid gap-4 md:grid-cols-3">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-2xl" />)}</section> : isError ? <Card className="border-rose-200 bg-rose-50"><CardContent className="flex items-center justify-between gap-3 p-6 text-sm text-rose-700"><span>تعذر تحميل بيانات المدن حالياً.</span><Button variant="outline" className="border-rose-300 text-rose-700" onClick={() => refetch()}><RefreshCw className="ml-2 h-4 w-4" />إعادة المحاولة</Button></CardContent></Card> : <>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric icon={Building2} label="المدن في العرض" value={numberFormat.format(filteredCities.length)} tone="amber" /><Metric icon={Database} label="قياسات مدنية معتمدة" value={numberFormat.format(data?.summary.approvedObservations ?? 0)} tone="blue" /><Metric icon={MapIcon} label="أحدث سنة متاحة" value={data?.summary.latestYear ? String(data.summary.latestYear) : "—"} tone="teal" /><Metric icon={MapPinned} label="الترتيبات المتاحة" value={numberFormat.format((rankings ?? []).filter((item) => item.indicator).length)} tone="slate" /></section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]"><article className="overflow-hidden rounded-2xl border border-[#dce8e4] bg-white shadow-sm"><div className="flex items-center justify-between border-b border-[#e5eeeb] px-5 py-4"><div><h2 className="font-bold text-[#153c39]">خريطة المدن التفاعلية</h2><p className="mt-1 text-xs text-slate-500">انقر على المدينة لفتح تفاصيلها. اضغط بطاقة ترتيب لإبراز المدينة وتلوين الخريطة بالمؤشر المرتبط.</p></div><Badge className={`border-0 ${mapLoading ? "bg-amber-50 text-amber-700" : "bg-[#e7f2ee] text-[#0f766e]"}`}>{mapLoading ? "جاري التحميل" : `${filteredCities.length} مدن`}</Badge></div>{mapFailure ? <CityMapFallback cities={filteredCities} highlightedCity={highlightedCity} colorFor={colorScale.colorFor} onSelect={(id) => setLocation(`/spatial/${id}`)} onRetry={() => { setMapLoading(true); setMapFailure(false); setMapRetryKey((key) => key + 1); }} /> : <MapView className="h-[430px]" initialCenter={{ lat: 26.3351, lng: 17.2283 }} initialZoom={5} onMapReady={setMap} onMapError={() => setMapFailure(true)} onMapLoadingChange={setMapLoading} retryKey={mapRetryKey} />}</article><CityDirectory cities={filteredCities} onSelect={(id) => setLocation(`/spatial/${id}`)} /></section>
+      <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]"><article className="overflow-hidden rounded-2xl border border-[#dce8e4] bg-white shadow-sm"><div className="flex items-center justify-between border-b border-[#e5eeeb] px-5 py-4"><div><h2 className="font-bold text-[#153c39]">خريطة المدن التفاعلية</h2><p className="mt-1 text-xs text-slate-500">انقر على المدينة للمعاينة السريعة. اضغط بطاقة ترتيب لإبراز المدينة وتلوين الخريطة بالمؤشر المرتبط.</p></div><Badge className={`border-0 ${mapLoading ? "bg-amber-50 text-amber-700" : "bg-[#e7f2ee] text-[#0f766e]"}`}>{mapLoading ? "جاري التحميل" : `${filteredCities.length} مدن`}</Badge></div>{mapFailure ? <CityMapFallback cities={filteredCities} highlightedCity={highlightedCity} colorFor={colorScale.colorFor} onSelect={openQuickPreview} onRetry={() => { setMapLoading(true); setMapFailure(false); setMapRetryKey((key) => key + 1); }} /> : <MapView className="h-[430px]" initialCenter={{ lat: 26.3351, lng: 17.2283 }} initialZoom={5} onMapReady={setMap} onMapError={() => setMapFailure(true)} onMapLoadingChange={setMapLoading} retryKey={mapRetryKey} />}</article><CityDirectory cities={filteredCities} onSelect={openQuickPreview} /></section>
 
       <CityColorLegend scale={colorScale} selectedIndicator={selectedIndicator !== all} />
       <CityRankingPanels rankings={rankings ?? []} highlightedCity={highlightedCity} onSelect={(cityId: number, indicatorId: number | null, categoryId: string) => { if (cityId > 0) { setHighlightedCity(cityId); setForecastCity(String(cityId)); } setTrendCategory(categoryId); if (indicatorId) { setSelectedIndicator(String(indicatorId)); setForecastIndicator(String(indicatorId)); } }} />
-      <CityHoverGuide cities={filteredCities} summaries={locationQuickStats} onSelect={(id) => setLocation(`/spatial/${id}`)} />
+      <CityHoverGuide cities={filteredCities} summaries={locationQuickStats} onSelect={openQuickPreview} />
       <div ref={spatialExportRef}><CityExportSummary cities={filteredCities} rankings={rankings ?? []} scale={colorScale} selectedYear={selectedYear} selectedIndicator={selectedIndicator} onExport={handleExport} isExporting={isExporting} /></div>
 
       <CityTrendChart trendData={trendData} rankings={rankings ?? []} selectedCategory={trendCategory} onCategory={setTrendCategory} cities={data?.cities ?? []} primary={comparePrimary} secondary={compareSecondary} onPrimary={setComparePrimary} onSecondary={setCompareSecondary} />
       <CityForecastChart cities={data?.cities ?? []} indicators={data?.indicators ?? []} cityId={forecastCity} indicatorId={forecastIndicator} horizon={forecastHorizon} onCityId={setForecastCity} onIndicatorId={setForecastIndicator} onHorizon={setForecastHorizon} data={cityForecast.data} error={cityForecast.error?.message} loading={cityForecast.isFetching} />
       <section className="grid gap-5 xl:grid-cols-[.9fr_1.1fr]"><CityComparison cities={data?.cities ?? []} primary={comparePrimary} secondary={compareSecondary} onPrimary={setComparePrimary} onSecondary={setCompareSecondary} selectedYear={selectedYear} selectedIndicator={selectedIndicator} primaryRow={primaryRow} secondaryRow={secondaryRow} difference={comparisonDifference} /><CityObservationsTable observations={data?.observations ?? []} /></section>
     </>}
+    <CityQuickPreview city={previewCity} stat={previewStat} canCompare={selectedIndicator !== all} onOpenChange={(open) => { if (!open) setPreviewCityId(null); }} onAddToCompare={addPreviewCityToComparison} onDetail={(cityId) => { setPreviewCityId(null); setLocation(`/spatial/${cityId}`); }} />
   </div>;
 }
 
 function Metric({ icon: Icon, label, value, tone }: { icon: typeof MapIcon; label: string; value: string; tone: "teal" | "amber" | "blue" | "slate" }) { const tones = { teal: "bg-teal-50 text-[#0f766e]", amber: "bg-amber-50 text-[#b26d1e]", blue: "bg-sky-50 text-sky-700", slate: "bg-slate-100 text-slate-600" }; return <Card className="border-[#dce8e4] shadow-sm"><CardContent className="flex items-center gap-3 p-4"><span className={`grid h-10 w-10 place-items-center rounded-xl ${tones[tone]}`}><Icon className="h-5 w-5" /></span><div><p className="text-xs text-slate-500">{label}</p><p className="mt-1 text-2xl font-bold text-[#173f3c]">{value}</p></div></CardContent></Card>; }
-function CityDirectory({ cities, onSelect }: { cities: { id: number; name: string; code: string }[]; onSelect: (id: number) => void }) { return <aside className="self-start rounded-2xl border border-[#dce8e4] bg-white p-5 shadow-sm xl:sticky xl:top-24"><div className="flex items-center justify-between"><div><h2 className="font-bold text-[#153c39]">دليل المدن</h2><p className="mt-1 text-xs text-slate-500">اختر مدينة لصفحة التفاصيل.</p></div><MapPinned className="h-5 w-5 text-[#b98238]" /></div><div className="mt-4 max-h-[430px] space-y-2 overflow-y-auto pe-1">{cities.length === 0 ? <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-4 text-center text-xs leading-6 text-amber-900">لا توجد مدينة تطابق البحث الحالي. امسح عبارة البحث لإظهار قائمة المدن كاملة.</div> : cities.map((city) => <button key={city.id} onClick={() => onSelect(city.id)} className="flex w-full items-center justify-between rounded-xl border border-[#e3ece9] bg-[#fbfdfc] px-3 py-2.5 text-right transition hover:border-[#91c8ba] hover:bg-[#f2faf7]"><span className="font-semibold text-[#173f3c]">{city.name}</span><span className="text-[10px] text-slate-500">{city.code}</span></button>)}</div><div className="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-3 text-xs leading-6 text-amber-900">يبقى دليل المدن ظاهراً أثناء التمرير، ويعرض المدن السياحية فقط. تُرتب القيم ضمن كل فئة مستقلة عند توفر قياسات معتمدة.</div></aside>; }
+function CityDirectory({ cities, onSelect }: { cities: { id: number; name: string; code: string }[]; onSelect: (id: number) => void }) { return <aside className="self-start rounded-2xl border border-[#dce8e4] bg-white p-5 shadow-sm xl:sticky xl:top-24"><div className="flex items-center justify-between"><div><h2 className="font-bold text-[#153c39]">دليل المدن</h2><p className="mt-1 text-xs text-slate-500">اختر مدينة للمعاينة السريعة أو للتفاصيل.</p></div><MapPinned className="h-5 w-5 text-[#b98238]" /></div><div className="mt-4 max-h-[430px] space-y-2 overflow-y-auto pe-1">{cities.length === 0 ? <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-4 text-center text-xs leading-6 text-amber-900">لا توجد مدينة تطابق البحث الحالي. امسح عبارة البحث لإظهار قائمة المدن كاملة.</div> : cities.map((city) => <button key={city.id} onClick={() => onSelect(city.id)} className="flex w-full items-center justify-between rounded-xl border border-[#e3ece9] bg-[#fbfdfc] px-3 py-2.5 text-right transition hover:border-[#91c8ba] hover:bg-[#f2faf7]"><span className="font-semibold text-[#173f3c]">{city.name}</span><span className="text-[10px] text-slate-500">{city.code}</span></button>)}</div><div className="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-3 text-xs leading-6 text-amber-900">يبقى دليل المدن ظاهراً أثناء التمرير، ويعرض المدن السياحية فقط. تُرتب القيم ضمن كل فئة مستقلة عند توفر قياسات معتمدة.</div></aside>; }
 function CityMapFallback({ cities, highlightedCity, colorFor, onSelect, onRetry }: { cities: { id: number; name: string }[]; highlightedCity: number | null; colorFor: (id: number) => string; onSelect: (id: number) => void; onRetry: () => void }) { const positions: Record<string, string> = { "طرابلس": "right-[16%] top-[23%]", "بنغازي": "right-[47%] top-[28%]", "سبها": "right-[36%] top-[66%]" }; return <div className="relative h-[430px] overflow-hidden bg-[radial-gradient(circle_at_80%_20%,rgba(79,180,172,.25),transparent_24%),linear-gradient(145deg,#f0f7f4,#deece7)]"><span className="absolute left-[7%] top-[8%] rounded-full border border-[#c4ddd5] bg-white/70 px-3 py-1.5 text-xs font-bold text-[#0f766e]">عرض المدن البديل</span><Button size="sm" variant="outline" className="absolute right-5 top-5 z-10 border-[#b9d7cf] bg-white/90 text-[#0f766e]" onClick={onRetry}><RefreshCw className="ml-1.5 h-3.5 w-3.5" />إعادة تحميل الخريطة</Button>{cities.map((city) => <button key={city.id} onClick={() => onSelect(city.id)} className={`absolute ${positions[city.name] ?? "right-1/2 top-1/2"} group -translate-x-1/2 -translate-y-1/2 text-center`}><span style={{ backgroundColor: colorFor(city.id) }} className={`mx-auto grid h-11 w-11 place-items-center rounded-full border-4 text-sm font-bold text-white shadow-lg transition group-hover:scale-110 ${city.id === highlightedCity ? "border-[#7c2d12] ring-4 ring-amber-200" : "border-white"}`}>{city.name.slice(0, 1)}</span><span className="mt-2 block rounded-lg bg-white/90 px-2 py-1 text-xs font-bold text-[#173f3c] shadow-sm">{city.name}</span></button>)}</div>; }
 function CityColorLegend({ scale, selectedIndicator }: { scale: ReturnType<typeof buildSpatialColorScale>; selectedIndicator: boolean }) { return <section className="rounded-2xl border border-[#dce8e4] bg-white p-5 shadow-sm"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><h2 className="font-bold text-[#153c39]">مقياس لون المدن</h2><p className="mt-1 text-xs text-slate-500">يستخدم أحدث قيمة سنوية معتمدة للمؤشر المختار فقط.</p></div><Badge variant="outline" className="w-fit border-[#b8d6ce] text-[#0f766e]">{selectedIndicator && scale.min !== null ? `${numberFormat.format(scale.min)} – ${numberFormat.format(scale.max ?? 0)} ${scale.unit ?? ""}` : "حدد مؤشراً لتفعيل التدرج"}</Badge></div><div className="mt-4 flex flex-wrap items-center gap-2">{scale.colors.map((color, index) => <span key={color} className="flex items-center gap-1.5 text-[11px] text-slate-500"><i className="h-4 w-7 rounded-md border border-white shadow-sm" style={{ backgroundColor: color }} />{index === 0 ? "أدنى" : index === scale.colors.length - 1 ? "أعلى" : ""}</span>)}<span className="mr-2 flex items-center gap-1.5 text-[11px] text-slate-500"><i className="h-4 w-7 rounded-md border border-white shadow-sm" style={{ backgroundColor: "#94a3b8" }} />لا قياسات معتمدة</span></div></section>; }
 function CityRankingBoard({ rankings, onSelect }: { rankings: { id: string; label: string; description: string; indicator: { name: string } | null; unit: string | null; items: { cityId: number; cityName: string; value: number; year: number }[] }[]; onSelect: (id: number) => void }) { return <section className="rounded-2xl border border-[#dce8e4] bg-white p-5 shadow-sm"><div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between"><div><h2 className="flex items-center gap-2 font-bold text-[#153c39]"><Trophy className="h-5 w-5 text-[#b98238]" />ترتيب المدن السياحي</h2><p className="mt-1 text-xs leading-6 text-slate-500">كل بطاقة تقارن المدن داخل مؤشر واحد فقط وبحسب أحدث قياس معتمد، لذلك لا تختلط الخدمات أو السياح أو الاستثمار في درجة موحدة.</p></div><Badge variant="outline" className="w-fit border-[#b8d6ce] text-[#0f766e]">{rankings.filter((item) => item.indicator).length} فئات مرتبطة بمؤشرات منشورة</Badge></div><div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">{rankings.map((ranking) => <article key={ranking.id} className="min-h-44 rounded-xl border border-[#e1ece8] bg-[#fbfdfc] p-4"><div className="flex items-start justify-between gap-2"><div><h3 className="font-bold text-[#173f3c]">{ranking.label}</h3><p className="mt-1 text-[11px] leading-5 text-slate-500">{ranking.indicator?.name ?? ranking.description}</p></div><Badge variant="outline" className="shrink-0 border-[#d5e6e0] text-[10px] text-[#0f766e]">{ranking.indicator ? "مؤشر منشور" : "غير متاح"}</Badge></div>{!ranking.indicator ? <p className="mt-5 rounded-lg border border-dashed border-[#d8e5e1] bg-white p-3 text-xs leading-6 text-slate-500">لا يوجد حالياً مؤشر مكاني منشور لهذه الفئة، لذا لا يظهر ترتيب تقديري.</p> : ranking.items.length === 0 ? <p className="mt-5 rounded-lg border border-dashed border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900">لا توجد قياسات مدنية معتمدة لهذا المؤشر بعد.</p> : <ol className="mt-4 space-y-2">{ranking.items.slice(0, 3).map((item, index) => <li key={item.cityId}><button onClick={() => onSelect(item.cityId)} className="flex w-full items-center justify-between rounded-lg bg-white px-2.5 py-2 text-right transition hover:bg-[#edf7f3]"><span className="flex items-center gap-2"><b className="grid h-5 w-5 place-items-center rounded-full bg-[#e4f2ed] text-[10px] text-[#0f766e]">{index + 1}</b><span className="text-xs font-semibold text-[#173f3c]">{item.cityName}</span></span><span className="text-[11px] font-bold text-[#0f766e]">{numberFormat.format(item.value)} {ranking.unit}</span></button></li>)}</ol>}</article>)}</div></section>; }
@@ -127,5 +154,7 @@ function CityComparison({ cities, primary, secondary, onPrimary, onSecondary, se
 function CityObservationsTable({ observations }: { observations: { id: number; areaName: string; indicatorName: string; year: number; value: number; unit: string; source: string | null }[] }) { return <article className="overflow-hidden rounded-2xl border border-[#dce8e4] bg-white shadow-sm"><div className="flex items-center justify-between border-b border-[#e5eeeb] px-5 py-4"><div><h2 className="font-bold text-[#153c39]">القياسات المدنية المعتمدة</h2><p className="mt-1 text-xs text-slate-500">تُعرض القياسات السنوية المعتمدة المرتبطة بمدينة فقط.</p></div><Badge variant="outline" className="border-[#b8d6ce] text-[#0f766e]">{numberFormat.format(observations.length)} سجل</Badge></div>{observations.length === 0 ? <div className="p-9 text-center"><MapPinned className="mx-auto h-9 w-9 text-[#91b7ad]" /><p className="mt-3 font-semibold text-[#173f3c]">سجل المدن جاهز لاستقبال البيانات المعتمدة</p><p className="mx-auto mt-2 max-w-xl text-sm leading-7 text-slate-500">تظهر القيم بعد إسنادها إلى مدينة من مصدر رسمي ومرورها بمسار المراجعة والاعتماد.</p></div> : <div className="overflow-auto"><table className="w-full min-w-[640px] text-right text-sm"><thead className="bg-[#f6faf8] text-xs text-slate-500"><tr><th className="px-5 py-3">المدينة</th><th className="px-5 py-3">المؤشر</th><th className="px-5 py-3">السنة</th><th className="px-5 py-3">القيمة</th><th className="px-5 py-3">المصدر</th></tr></thead><tbody>{observations.map((row) => <tr key={row.id} className="border-t border-[#edf2f0]"><td className="px-5 py-3 font-semibold text-[#173f3c]">{row.areaName}</td><td className="px-5 py-3 text-slate-600">{row.indicatorName}</td><td className="px-5 py-3 text-slate-600">{row.year}</td><td className="px-5 py-3 font-bold text-[#0f766e]">{numberFormat.format(row.value)} {row.unit}</td><td className="max-w-64 truncate px-5 py-3 text-xs text-slate-500">{row.source ?? "—"}</td></tr>)}</tbody></table></div>}</article>; }
 function ExportTile({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-[#dce8e4] bg-white px-4 py-3"><p className="text-[11px] text-slate-500">{label}</p><p className="mt-1 font-bold text-[#173f3c]">{value}</p></div>; }
 function ComparisonValue({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) { return <div className={`rounded-xl p-3 text-center ${highlight ? "bg-[#0f766e] text-white" : "border border-[#dce8e4] bg-white text-[#173f3c]"}`}><p className={`text-[11px] ${highlight ? "text-teal-100" : "text-slate-500"}`}>{label}</p><p className="mt-1 text-sm font-bold">{value}</p></div>; }
+export function CityQuickPreview({ city, stat, canCompare, onOpenChange, onAddToCompare, onDetail }: { city: { id: number; name: string; code: string } | null; stat: LocationQuickStat; canCompare: boolean; onOpenChange: (open: boolean) => void; onAddToCompare: (cityId: number) => void; onDetail: (cityId: number) => void }) { return <Dialog open={Boolean(city)} onOpenChange={onOpenChange}><DialogContent dir="rtl" className="max-w-md border-[#cfe3dc] bg-[#fbfdfc] text-right"><DialogHeader><DialogTitle className="text-xl text-[#153c39]">{city?.name ?? "تفاصيل المدينة"}</DialogTitle><DialogDescription>{city ? `${city.code} · ملخص مبني على القياسات المدنية المعتمدة فقط.` : ""}</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><PreviewMetric label="القياسات المعتمدة" value={numberFormat.format(stat.count)} /><PreviewMetric label="أحدث سنة" value={stat.latestYear ? String(stat.latestYear) : "—"} /><PreviewMetric label="أحدث قيمة" value={stat.latestValue !== null ? `${numberFormat.format(stat.latestValue)} ${stat.unit ?? ""}` : "لا توجد قيمة"} /><PreviewMetric label="المؤشر" value={stat.indicatorName ?? "لا توجد قياسات معتمدة"} /></div>{!canCompare ? <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-6 text-amber-900">حدّد مؤشراً من المرشح أولاً لتتمكن من إضافة المدينة إلى مقارنة وحدات متجانسة.</p> : null}<DialogFooter className="gap-2 sm:justify-start"><Button variant="outline" className="border-[#b8d6ce] text-[#0f766e]" disabled={!city || !canCompare} onClick={() => city && onAddToCompare(city.id)}>إضافة إلى المقارنة</Button><Button className="bg-[#0f766e] hover:bg-[#0b5f5a]" disabled={!city} onClick={() => city && onDetail(city.id)}>التفاصيل الكاملة</Button></DialogFooter></DialogContent></Dialog>; }
+function PreviewMetric({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-[#dce8e4] bg-white p-3"><p className="text-[11px] text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-bold text-[#173f3c]">{value}</p></div>; }
 function emptyQuickStat(): LocationQuickStat { return { count: 0, latestYear: null, latestValue: null, unit: null, indicatorName: null }; }
 function mapQuickStatHtml(cityName: string, stat: LocationQuickStat) { return `<div dir="rtl" style="font-family:Arial;padding:6px 4px;min-width:190px"><strong style="font-size:14px">${cityName}</strong><hr style="border:0;border-top:1px solid #e2e8f0;margin:7px 0"/><small>قياسات معتمدة: <b>${stat.count}</b></small><br/>${stat.latestYear ? `<small>أحدث قيمة: <b>${numberFormat.format(stat.latestValue ?? 0)} ${stat.unit ?? ""}</b> (${stat.latestYear})</small><br/><small>${stat.indicatorName ?? ""}</small>` : "<small>لا توجد قياسات معتمدة بعد</small>"}</div>`; }

@@ -207,22 +207,25 @@ export async function getSpatialOverview(filters?: SpatialFilters) {
     };
   }
 
-  const [areas, publishedIndicators, rawObservations] = await Promise.all([
+  const observationConditions = [
+    eq(spatialObservations.verificationStatus, "approved"),
+    eq(spatialObservations.period, "annual"),
+    eq(spatialObservations.quarter, "annual"),
+    filters?.year ? eq(spatialObservations.year, filters.year) : undefined,
+    filters?.indicatorId ? eq(spatialObservations.indicatorId, filters.indicatorId) : undefined,
+    filters?.areaId ? eq(spatialObservations.spatialAreaId, filters.areaId) : undefined,
+  ].filter(Boolean);
+  const [areas, publishedIndicators, approved] = await Promise.all([
     db.select().from(spatialAreas).where(eq(spatialAreas.status, "active")).orderBy(asc(spatialAreas.type), asc(spatialAreas.name)),
     listIndicators({ status: "published" }),
     db.select({ observation: spatialObservations, indicator: indicators, area: spatialAreas })
       .from(spatialObservations)
       .innerJoin(indicators, eq(spatialObservations.indicatorId, indicators.id))
-      .innerJoin(spatialAreas, eq(spatialObservations.spatialAreaId, spatialAreas.id)),
+      .innerJoin(spatialAreas, eq(spatialObservations.spatialAreaId, spatialAreas.id))
+      .where(and(...observationConditions)),
   ]);
 
   const areaById = new Map(areas.map((area) => [area.id, area]));
-  const approved = rawObservations
-    .filter((row) => row.observation.verificationStatus === "approved")
-    .filter((row) => row.observation.period === "annual" && row.observation.quarter === "annual")
-    .filter((row) => !filters?.year || row.observation.year === filters.year)
-    .filter((row) => !filters?.indicatorId || row.indicator.id === filters.indicatorId)
-    .filter((row) => !filters?.areaId || row.area.id === filters.areaId);
 
   const regions = areas.filter((area) => area.type === "region");
   const cities = areas
