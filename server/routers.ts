@@ -276,6 +276,10 @@ export const appRouter = router({
       db.reviewOfficialCityAccommodation2013Batch(ctx.user.id, input.note)),
     approveOfficialCityAccommodation2013Batch: adminProcedure.input(z.object({ confirmed: z.literal(true), note: z.string().trim().max(2000).optional() })).mutation(({ ctx, input }) =>
       db.approveOfficialCityAccommodation2013Batch(ctx.user.id, input.note)),
+    reviewOfficialCityGuides2009to2010Batch: analystProcedure.input(z.object({ confirmed: z.literal(true), note: z.string().trim().max(2000).optional() })).mutation(({ ctx, input }) =>
+      db.reviewOfficialCityGuides2009to2010Batch(ctx.user.id, input.note)),
+    approveOfficialCityGuides2009to2010Batch: adminProcedure.input(z.object({ confirmed: z.literal(true), note: z.string().trim().max(2000).optional() })).mutation(({ ctx, input }) =>
+      db.approveOfficialCityGuides2009to2010Batch(ctx.user.id, input.note)),
     deleteObservation: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => db.deleteSpatialObservation(input.id)),
   }),
   publication: router({
@@ -287,8 +291,12 @@ export const appRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: error instanceof Error ? error.message : "تعذر تحميل حزمة النشر." });
       }
     }),
-    updateStatus: adminProcedure.input(z.object({ id: z.number().int().positive(), status: publicationStatusSchema })).mutation(({ ctx, input }) =>
-      db.updatePublicationDestinationStatus(input.id, input.status, ctx.user.id)),
+    updateStatus: adminProcedure.input(z.object({ id: z.number().int().positive(), status: publicationStatusSchema, confirmed: z.literal(true).optional() })).mutation(({ ctx, input }) => {
+      if (input.status === "ready" && input.confirmed !== true) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "يتطلب تحويل الوجهة إلى «جاهز للربط» تأكيداً صريحاً بعد معاينة الحزمة وعقد التكامل." });
+      }
+      return db.updatePublicationDestinationStatus(input.id, input.status, ctx.user.id);
+    }),
   }),
   imports: router({
     history: protectedProcedure.query(() => db.listImportJobs()),

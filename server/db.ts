@@ -23,6 +23,7 @@ import { historicalOfficialPublisher, historicalSourceRegistry } from "./histori
 import { buildCityRankings } from "../shared/cityRankings";
 import { buildCityTrendSeries } from "../shared/cityTrends";
 import { officialCityAccommodation2013Source, officialCityAccommodation2013Year } from "../shared/officialCityAccommodationBatch";
+import { officialCityGuides2009to2010IndicatorCode, officialCityGuides2009to2010Sources, officialCityGuides2009to2010Years } from "../shared/officialCityGuides2009to2010Batch";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -513,6 +514,51 @@ export async function approveOfficialCityAccommodation2013Batch(actedBy: number,
     eq(spatialObservations.verificationStatus, "reviewed"),
   ));
   const auditNote = `اعتماد مسؤول لدفعة مرافق الإيواء العاملة حسب المدن لسنة 2013.${note ? ` ${note}` : ""}`;
+  const approvedAt = new Date();
+  await db.transaction(async (tx) => {
+    for (const observation of candidates) {
+      await tx.update(spatialObservations).set({ verificationStatus: "approved", verifiedBy: actedBy, verifiedAt: approvedAt }).where(eq(spatialObservations.id, observation.id));
+      await tx.insert(spatialObservationReviewEvents).values({ spatialObservationId: observation.id, fromStatus: "reviewed", toStatus: "approved", note: auditNote, actedBy });
+    }
+  });
+  return { identified: candidates.length, approved: candidates.length };
+}
+
+async function getOfficialCityGuides2009to2010Candidates(status: "draft" | "reviewed") {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const [indicator] = await getIndicatorsByCodes([officialCityGuides2009to2010IndicatorCode]);
+  if (!indicator) return [];
+  const candidates = await db.select().from(spatialObservations).where(and(
+    eq(spatialObservations.indicatorId, indicator.id),
+    inArray(spatialObservations.year, [...officialCityGuides2009to2010Years]),
+    eq(spatialObservations.period, "annual"),
+    eq(spatialObservations.quarter, "annual"),
+    eq(spatialObservations.verificationStatus, status),
+  ));
+  return candidates.filter((observation) => officialCityGuides2009to2010Sources.some((source) => source === observation.source));
+}
+
+export async function reviewOfficialCityGuides2009to2010Batch(actedBy: number, note?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const candidates = await getOfficialCityGuides2009to2010Candidates("draft");
+  const reviewable = candidates.filter((observation) => observation.enteredBy !== actedBy);
+  const auditNote = `مراجعة مستقلة لدفعة المرشدين السياحيين حسب المدن لسنتي 2009–2010.${note ? ` ${note}` : ""}`;
+  await db.transaction(async (tx) => {
+    for (const observation of reviewable) {
+      await tx.update(spatialObservations).set({ verificationStatus: "reviewed", verifiedBy: null, verifiedAt: null }).where(eq(spatialObservations.id, observation.id));
+      await tx.insert(spatialObservationReviewEvents).values({ spatialObservationId: observation.id, fromStatus: "draft", toStatus: "reviewed", note: auditNote, actedBy });
+    }
+  });
+  return { identified: candidates.length, reviewed: reviewable.length, skippedSelfEntered: candidates.length - reviewable.length };
+}
+
+export async function approveOfficialCityGuides2009to2010Batch(actedBy: number, note?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const candidates = await getOfficialCityGuides2009to2010Candidates("reviewed");
+  const auditNote = `اعتماد مسؤول لدفعة المرشدين السياحيين حسب المدن لسنتي 2009–2010.${note ? ` ${note}` : ""}`;
   const approvedAt = new Date();
   await db.transaction(async (tx) => {
     for (const observation of candidates) {

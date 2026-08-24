@@ -15,7 +15,9 @@ const dbMock = vi.hoisted(() => ({
   getSpatialOverview: vi.fn(),
   moveSpatialObservationStatus: vi.fn(),
   approveOfficialCityAccommodation2013Batch: vi.fn(),
+  approveOfficialCityGuides2009to2010Batch: vi.fn(),
   reviewOfficialCityAccommodation2013Batch: vi.fn(),
+  reviewOfficialCityGuides2009to2010Batch: vi.fn(),
   upsertSpatialObservation: vi.fn(),
   updatePublicationDestinationStatus: vi.fn(),
 }));
@@ -104,9 +106,10 @@ describe("spatial and publication routers", () => {
     const admin = appRouter.createCaller(context("admin"));
     const viewer = appRouter.createCaller(context("viewer"));
 
-    await admin.publication.updateStatus({ id: 1, status: "ready" });
+    await expect(admin.publication.updateStatus({ id: 1, status: "ready" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await admin.publication.updateStatus({ id: 1, status: "ready", confirmed: true });
     expect(dbMock.updatePublicationDestinationStatus).toHaveBeenCalledWith(1, "ready", 7);
-    await expect(viewer.publication.updateStatus({ id: 1, status: "ready" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(viewer.publication.updateStatus({ id: 1, status: "ready", confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("stores spatial measurements as drafts after validating an active location and the indicator unit", async () => {
@@ -203,5 +206,21 @@ describe("spatial and publication routers", () => {
     await expect(admin.spatial.approveOfficialCityAccommodation2013Batch({ confirmed: true, note: "اعتماد بعد استكمال المراجعة." })).resolves.toMatchObject({ approved: 123 });
     expect(dbMock.approveOfficialCityAccommodation2013Batch).toHaveBeenCalledWith(7, "اعتماد بعد استكمال المراجعة.");
     await expect(analyst.spatial.approveOfficialCityAccommodation2013Batch({ confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps the 2009–2010 city-guides batch on the same independent review and admin-approval path", async () => {
+    dbMock.reviewOfficialCityGuides2009to2010Batch.mockResolvedValue({ identified: 10, reviewed: 10, skippedSelfEntered: 0 });
+    dbMock.approveOfficialCityGuides2009to2010Batch.mockResolvedValue({ identified: 10, approved: 10 });
+    const analyst = appRouter.createCaller(context("analyst"));
+    const admin = appRouter.createCaller(context("admin"));
+    const viewer = appRouter.createCaller(context("viewer"));
+
+    await expect(analyst.spatial.reviewOfficialCityGuides2009to2010Batch({ confirmed: true, note: "تمت مطابقة جدولَي المرشدين." })).resolves.toMatchObject({ reviewed: 10 });
+    expect(dbMock.reviewOfficialCityGuides2009to2010Batch).toHaveBeenCalledWith(7, "تمت مطابقة جدولَي المرشدين.");
+    await expect(viewer.spatial.reviewOfficialCityGuides2009to2010Batch({ confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await expect(admin.spatial.approveOfficialCityGuides2009to2010Batch({ confirmed: true, note: "اعتماد بعد المراجعة المستقلة." })).resolves.toMatchObject({ approved: 10 });
+    expect(dbMock.approveOfficialCityGuides2009to2010Batch).toHaveBeenCalledWith(7, "اعتماد بعد المراجعة المستقلة.");
+    await expect(analyst.spatial.approveOfficialCityGuides2009to2010Batch({ confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

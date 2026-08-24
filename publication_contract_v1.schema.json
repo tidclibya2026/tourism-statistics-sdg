@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tidc.com.ly/contracts/tourism-statistics-publication-v1.schema.json",
+  "title": "عقد النشر الموحد للإحصاءات والمؤشرات السياحية — الإصدار 1",
+  "type": "object",
+  "required": ["version", "ready", "destination", "records", "message"],
+  "properties": {
+    "version": { "const": "v1" },
+    "ready": { "type": "boolean" },
+    "destination": {
+      "type": "object",
+      "required": ["code", "name", "status"],
+      "properties": {
+        "code": { "enum": ["visit_libya", "libya_atlas"] },
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["draft", "ready", "paused"] }
+      },
+      "additionalProperties": false
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["indicator_code", "indicator_name", "year", "period", "value", "unit", "area_code", "area_name", "source", "verification_status"],
+        "properties": {
+          "indicator_code": { "type": "string", "minLength": 1 },
+          "indicator_name": { "type": "string", "minLength": 1 },
+          "year": { "type": "integer", "minimum": 1990, "maximum": 2100 },
+          "period": { "const": "annual" },
+          "value": { "type": "number" },
+          "unit": { "type": "string", "minLength": 1 },
+          "area_code": { "type": ["string", "null"] },
+          "area_name": { "type": ["string", "null"] },
+          "source": { "type": ["string", "null"] },
+          "verification_status": { "const": "approved" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "message": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}
