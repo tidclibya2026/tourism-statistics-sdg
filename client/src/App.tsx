@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DashboardLayout from "@/components/DashboardLayout";
+import PublicCityLayout from "@/components/PublicCityLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Compare from "./pages/Compare";
@@ -20,6 +21,7 @@ import Users from "./pages/Users";
 import { Route, Switch } from "wouter";
 
 function ProtectedPage({ children }: { children: React.ReactNode }) { return <DashboardLayout>{children}</DashboardLayout>; }
+function PublicCityPage({ children }: { children: React.ReactNode }) { return <PublicCityLayout>{children}</PublicCityLayout>; }
 
 function Router() {
   return <Switch>
@@ -29,8 +31,8 @@ function Router() {
     <Route path="/data-entry"><ProtectedPage><DataEntry /></ProtectedPage></Route>
     <Route path="/forecast"><ProtectedPage><Forecast /></ProtectedPage></Route>
     <Route path="/archive"><ProtectedPage><HistoricalArchive /></ProtectedPage></Route>
-    <Route path="/spatial"><ProtectedPage><SpatialExplorer /></ProtectedPage></Route>
-    <Route path="/spatial/:areaId"><ProtectedPage><SpatialDetail /></ProtectedPage></Route>
+    <Route path="/spatial"><PublicCityPage><SpatialExplorer /></PublicCityPage></Route>
+    <Route path="/spatial/:areaId"><PublicCityPage><SpatialDetail /></PublicCityPage></Route>
     <Route path="/spatial-management"><ProtectedPage><SpatialManagement /></ProtectedPage></Route>
     <Route path="/compare"><ProtectedPage><Compare /></ProtectedPage></Route>
     <Route path="/imports"><ProtectedPage><Imports /></ProtectedPage></Route>

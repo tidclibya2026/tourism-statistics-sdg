@@ -172,25 +172,25 @@ export const appRouter = router({
     overview: protectedProcedure.query(() => db.getHistoricalArchiveData()),
   }),
   spatial: router({
-    overview: protectedProcedure.input(z.object({
+    overview: publicProcedure.input(z.object({
       year: z.number().int().min(1990).max(2100).optional(),
       indicatorId: z.number().int().positive().optional(),
       areaId: z.number().int().positive().optional(),
     }).optional()).query(({ input }) => db.getSpatialOverview(input)),
-    detail: protectedProcedure.input(z.object({ areaId: z.number().int().positive() })).query(async ({ input }) => {
+    detail: publicProcedure.input(z.object({ areaId: z.number().int().positive() })).query(async ({ input }) => {
       const detail = await db.getSpatialAreaDetail(input.areaId);
       if (!detail) throw new TRPCError({ code: "NOT_FOUND", message: "الموقع المكاني غير موجود أو غير نشط." });
       return detail;
     }),
-    cityRankings: protectedProcedure.query(() => db.getCityRankings()),
-    cityTrend: protectedProcedure.input(z.object({ categoryId: z.string().trim().min(1).max(64) })).query(async ({ input }) => {
+    cityRankings: publicProcedure.query(() => db.getCityRankings()),
+    cityTrend: publicProcedure.input(z.object({ categoryId: z.string().trim().min(1).max(64) })).query(async ({ input }) => {
       try {
         return await db.getCityTrend(input.categoryId);
       } catch (error) {
         throw new TRPCError({ code: "NOT_FOUND", message: error instanceof Error ? error.message : "تعذر تحميل السلسلة الزمنية للمدن." });
       }
     }),
-    cityForecast: protectedProcedure.input(z.object({
+    cityForecast: publicProcedure.input(z.object({
       areaId: z.number().int().positive(),
       indicatorId: z.number().int().positive(),
       horizon: z.number().int().min(1).max(15).default(5),

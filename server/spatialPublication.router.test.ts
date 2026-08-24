@@ -37,17 +37,17 @@ function context(role: "admin" | "analyst" | "viewer"): TrpcContext {
 describe("spatial and publication routers", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("forwards spatial filters and lets a viewer read approved spatial content", async () => {
+  it("forwards spatial filters and lets the public read approved spatial content", async () => {
     dbMock.getSpatialOverview.mockResolvedValue({ summary: { approvedObservations: 0 } });
-    const caller = appRouter.createCaller(context("viewer"));
+    const caller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });
 
     await expect(caller.spatial.overview({ year: 2025, indicatorId: 3, areaId: 5 })).resolves.toEqual({ summary: { approvedObservations: 0 } });
     expect(dbMock.getSpatialOverview).toHaveBeenCalledWith({ year: 2025, indicatorId: 3, areaId: 5 });
   });
 
-  it("returns a spatial location detail only when the location is active", async () => {
+  it("returns a spatial location detail to the public only when the location is active", async () => {
     dbMock.getSpatialAreaDetail.mockResolvedValue({ area: { id: 1, name: "طرابلس التاريخية" }, observations: [], summary: { approvedObservations: 0 } });
-    const caller = appRouter.createCaller(context("viewer"));
+    const caller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });
 
     await expect(caller.spatial.detail({ areaId: 1 })).resolves.toMatchObject({ area: { name: "طرابلس التاريخية" } });
     expect(dbMock.getSpatialAreaDetail).toHaveBeenCalledWith(1);
@@ -55,22 +55,22 @@ describe("spatial and publication routers", () => {
 
   it("hides non-city detail records from the public spatial detail flow", async () => {
     dbMock.getSpatialAreaDetail.mockResolvedValue(undefined);
-    const caller = appRouter.createCaller(context("viewer"));
+    const caller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });
 
     await expect(caller.spatial.detail({ areaId: 99 })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("returns city ranking boards to authenticated viewers", async () => {
+  it("returns city ranking boards to public visitors", async () => {
     dbMock.getCityRankings.mockResolvedValue([{ id: "tourists", label: "السياح", items: [] }]);
-    const caller = appRouter.createCaller(context("viewer"));
+    const caller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });
 
     await expect(caller.spatial.cityRankings()).resolves.toEqual([{ id: "tourists", label: "السياح", items: [] }]);
     expect(dbMock.getCityRankings).toHaveBeenCalledOnce();
   });
 
-  it("returns a category-specific temporal city trend to authenticated viewers", async () => {
+  it("returns a category-specific temporal city trend to public visitors", async () => {
     dbMock.getCityTrend.mockResolvedValue({ category: { id: "tourists" }, years: [], series: [] });
-    const caller = appRouter.createCaller(context("viewer"));
+    const caller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });
 
     await expect(caller.spatial.cityTrend({ categoryId: "tourists" })).resolves.toEqual({ category: { id: "tourists" }, years: [], series: [] });
     expect(dbMock.getCityTrend).toHaveBeenCalledWith("tourists");
@@ -82,6 +82,13 @@ describe("spatial and publication routers", () => {
 
     await expect(caller.publication.hub()).resolves.toEqual({ summary: { nationalApproved: 179 } });
     expect(dbMock.getPublicationHubData).toHaveBeenCalledOnce();
+  });
+
+  it("keeps spatial management protected when public city reads are enabled", async () => {
+    const caller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });
+
+    await expect(caller.spatial.management()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(dbMock.getSpatialManagementData).not.toHaveBeenCalled();
   });
 
   it("exposes a stable public feed that remains empty until its destination is ready", async () => {
