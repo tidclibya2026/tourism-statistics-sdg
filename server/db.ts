@@ -462,7 +462,7 @@ export async function getSpatialObservationForPeriod(values: Pick<InsertSpatialO
   return result[0];
 }
 
-export async function moveSpatialObservationStatus(id: number, status: "reviewed" | "approved" | "rejected", actedBy: number, note?: string) {
+export async function moveSpatialObservationStatus(id: number, status: "draft" | "reviewed" | "approved" | "rejected", actedBy: number, note?: string) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
   const current = await getSpatialObservationById(id);

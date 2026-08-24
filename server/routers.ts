@@ -254,9 +254,13 @@ export const appRouter = router({
       }
       return db.upsertSpatialObservation({ ...input, value: String(input.value), targetValue: input.targetValue === null ? null : input.targetValue === undefined ? undefined : String(input.targetValue), enteredBy: ctx.user.id, verificationStatus: "draft" });
     }),
-    setObservationStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["reviewed", "approved", "rejected"]), note: z.string().trim().max(2000).optional() })).mutation(async ({ ctx, input }) => {
+    setObservationStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: z.enum(["draft", "reviewed", "approved", "rejected"]), note: z.string().trim().max(2000).optional() })).mutation(async ({ ctx, input }) => {
       const observation = await db.getSpatialObservationById(input.id);
       if (!observation) throw new TRPCError({ code: "NOT_FOUND", message: "القياس المكاني غير موجود." });
+      if (input.status === "draft") {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "إعادة القياس إلى مسودة موثقة محصورة بدور المسؤول." });
+        if (observation.verificationStatus !== "rejected") throw new TRPCError({ code: "BAD_REQUEST", message: "لا يمكن إعادة القياس إلى مسودة إلا من حالة مرفوض." });
+      }
       if (input.status === "reviewed") {
         if (observation.verificationStatus !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "لا يمكن إرسال القياس إلى المراجعة إلا من حالة المسودة." });
         if (observation.enteredBy === ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "يلزم أن يراجع القياس محلل مستقل عن مُدخله." });

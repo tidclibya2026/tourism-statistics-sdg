@@ -158,6 +158,26 @@ describe("spatial and publication routers", () => {
     await expect(admin.spatial.setObservationStatus({ id: 32, status: "approved" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
+  it("allows an administrator to withdraw an approved spatial observation with an auditable rejection", async () => {
+    dbMock.getSpatialObservationById.mockResolvedValue({ id: 33, verificationStatus: "approved", enteredBy: 8 });
+    dbMock.moveSpatialObservationStatus.mockResolvedValue(undefined);
+    const admin = appRouter.createCaller(context("admin"));
+
+    await admin.spatial.setObservationStatus({ id: 33, status: "rejected", note: "المصدر غير ضمن المستندات المعتمدة." });
+    expect(dbMock.moveSpatialObservationStatus).toHaveBeenCalledWith(33, "rejected", 7, "المصدر غير ضمن المستندات المعتمدة.");
+  });
+
+  it("allows only an administrator to reopen a rejected official observation as a documented draft", async () => {
+    dbMock.getSpatialObservationById.mockResolvedValue({ id: 34, verificationStatus: "rejected", enteredBy: 8 });
+    dbMock.moveSpatialObservationStatus.mockResolvedValue(undefined);
+    const admin = appRouter.createCaller(context("admin"));
+    const analyst = appRouter.createCaller(context("analyst"));
+
+    await admin.spatial.setObservationStatus({ id: 34, status: "draft", note: "استعادة من المصدر الرسمي." });
+    expect(dbMock.moveSpatialObservationStatus).toHaveBeenCalledWith(34, "draft", 7, "استعادة من المصدر الرسمي.");
+    await expect(analyst.spatial.setObservationStatus({ id: 34, status: "draft" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("lets an analyst confirm the constrained official city-accommodation batch only", async () => {
     dbMock.reviewOfficialCityAccommodation2013Batch.mockResolvedValue({ identified: 123, reviewed: 123, skippedSelfEntered: 0 });
     const analyst = appRouter.createCaller(context("analyst"));
