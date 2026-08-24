@@ -47,6 +47,14 @@ describe("spatial and publication routers", () => {
     expect(dbMock.getSpatialOverview).toHaveBeenCalledWith({ year: 2025, indicatorId: 3, areaId: 5 });
   });
 
+  it("returns an optional viewer session for public city routes without requiring login", async () => {
+    const publicCaller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });
+    const authenticatedCaller = appRouter.createCaller(context("analyst"));
+
+    await expect(publicCaller.auth.viewer()).resolves.toBeNull();
+    await expect(authenticatedCaller.auth.viewer()).resolves.toMatchObject({ id: 7, role: "analyst" });
+  });
+
   it("returns a spatial location detail to the public only when the location is active", async () => {
     dbMock.getSpatialAreaDetail.mockResolvedValue({ area: { id: 1, name: "طرابلس التاريخية" }, observations: [], summary: { approvedObservations: 0 } });
     const caller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });

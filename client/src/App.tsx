@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DashboardLayout from "@/components/DashboardLayout";
 import PublicCityLayout from "@/components/PublicCityLayout";
+import { trpc } from "@/lib/trpc";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Compare from "./pages/Compare";
@@ -21,7 +22,10 @@ import Users from "./pages/Users";
 import { Route, Switch } from "wouter";
 
 function ProtectedPage({ children }: { children: React.ReactNode }) { return <DashboardLayout>{children}</DashboardLayout>; }
-function PublicCityPage({ children }: { children: React.ReactNode }) { return <PublicCityLayout>{children}</PublicCityLayout>; }
+function PublicCityPage({ children }: { children: React.ReactNode }) {
+  const { data: viewer } = trpc.auth.viewer.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  return viewer ? <DashboardLayout>{children}</DashboardLayout> : <PublicCityLayout>{children}</PublicCityLayout>;
+}
 
 function Router() {
   return <Switch>
