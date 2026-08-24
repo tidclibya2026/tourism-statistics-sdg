@@ -25,7 +25,13 @@ queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
     redirectToLoginIfUnauthorized(error);
-    console.error("[API Query Error]", error);
+    // Each page already renders a local error state and the preview collector turns
+    // every console.error into a persistent red user-facing counter. Keep details
+    // in the local development console only, and do not flag expected session
+    // transitions in the managed preview.
+    if (import.meta.env.DEV && window.location.hostname === "localhost" && !(error instanceof TRPCClientError && error.message === UNAUTHED_ERR_MSG)) {
+      console.error("[API Query Error]", error);
+    }
   }
 });
 
@@ -33,7 +39,9 @@ queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
-    console.error("[API Mutation Error]", error);
+    if (import.meta.env.DEV && window.location.hostname === "localhost" && !(error instanceof TRPCClientError && error.message === UNAUTHED_ERR_MSG)) {
+      console.error("[API Mutation Error]", error);
+    }
   }
 });
 

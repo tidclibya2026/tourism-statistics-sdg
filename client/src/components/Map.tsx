@@ -108,7 +108,6 @@ function loadMapScript() {
       script.remove(); // Clean up immediately
     };
     script.onerror = () => {
-      console.error("Failed to load Google Maps script");
       script.remove();
       reject(new Error("Failed to load Google Maps script"));
     };
@@ -145,8 +144,7 @@ export function MapView({
     try {
       await loadMapScript();
       if (!mapContainer.current) {
-        console.error("Map container not found");
-        return;
+        throw new Error("Map container not found");
       }
       map.current = new window.google.maps.Map(mapContainer.current, {
         zoom: initialZoom,

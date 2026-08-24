@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { buildSpatialColorScale } from "@shared/spatialColorScale";
 import { buildLocationQuickStats, type LocationQuickStat } from "@shared/spatialQuickStats";
+import { detachMapMarkers } from "@shared/mapMarkers";
 import { exportSpatialPdf, exportSpatialPng } from "@/lib/spatialExport";
 import { CityRankingPanels } from "@/components/CityRankingPanels";
 import { CityTrendChart } from "@/components/CityTrendChart";
@@ -68,28 +69,29 @@ export default function SpatialExplorer() {
 
   useEffect(() => {
     if (!map || !data || !window.google) return;
-    markerRefs.current.forEach((marker) => marker.setMap(null));
-    markerRefs.current = [];
+    markerRefs.current = detachMapMarkers(markerRefs.current) as google.maps.Marker[];
     if (filteredCities.length === 0) return;
     const geocoder = new window.google.maps.Geocoder();
-    const bounds = new window.google.maps.LatLngBounds();
     let cancelled = false;
     filteredCities.forEach((city) => {
       geocoder.geocode({ address: `${city.name}، ليبيا` }, (results, status) => {
         if (cancelled || status !== "OK" || !results?.[0]?.geometry?.location) return;
-        const stat = locationQuickStats.get(city.id) ?? emptyQuickStat();
-        const isHighlighted = city.id === highlightedCity;
-        const marker = new window.google.maps.Marker({ map, position: results[0].geometry.location, title: city.name, label: { text: city.name.slice(0, 1), color: "#ffffff", fontWeight: "700" }, icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: isHighlighted ? 15 : 11, fillColor: colorScale.colorFor(city.id), fillOpacity: 1, strokeColor: isHighlighted ? "#7c2d12" : "#ffffff", strokeWeight: isHighlighted ? 4 : 2 }, zIndex: isHighlighted ? 100 : undefined });
-        const info = new window.google.maps.InfoWindow({ content: mapQuickStatHtml(city.name, stat) });
-        marker.addListener("mouseover", () => info.open({ map, anchor: marker }));
-        marker.addListener("mouseout", () => info.close());
-        marker.addListener("click", () => setLocation(`/spatial/${city.id}`));
-        markerRefs.current.push(marker);
-        bounds.extend(results[0].geometry.location);
-        if (markerRefs.current.length === filteredCities.length) map.fitBounds(bounds, 80);
+        try {
+          const stat = locationQuickStats.get(city.id) ?? emptyQuickStat();
+          const isHighlighted = city.id === highlightedCity;
+          const marker = new window.google.maps.Marker({ map, position: results[0].geometry.location, title: city.name, label: { text: city.name.slice(0, 1), color: "#ffffff", fontWeight: "700" }, icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: isHighlighted ? 15 : 11, fillColor: colorScale.colorFor(city.id), fillOpacity: 1, strokeColor: isHighlighted ? "#7c2d12" : "#ffffff", strokeWeight: isHighlighted ? 4 : 2 }, zIndex: isHighlighted ? 100 : undefined });
+          const info = new window.google.maps.InfoWindow({ content: mapQuickStatHtml(city.name, stat) });
+          marker.addListener("mouseover", () => info.open({ map, anchor: marker }));
+          marker.addListener("mouseout", () => info.close());
+          marker.addListener("click", () => setLocation(`/spatial/${city.id}`));
+          markerRefs.current.push(marker);
+        } catch {
+          // Keep the city directory and alternate map usable when a remote map SDK
+          // rejects a stale marker during a refresh.
+        }
       });
     });
-    return () => { cancelled = true; markerRefs.current.forEach((marker) => marker.setMap(null)); };
+    return () => { cancelled = true; markerRefs.current = detachMapMarkers(markerRefs.current) as google.maps.Marker[]; };
   }, [colorScale, data, filteredCities, highlightedCity, locationQuickStats, map, setLocation]);
 
   return <div className="space-y-6">
