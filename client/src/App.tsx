@@ -15,6 +15,7 @@ import Indicators from "./pages/Indicators";
 import NotFound from "./pages/NotFound";
 import Reports from "./pages/Reports";
 import PublicationHub from "./pages/PublicationHub";
+import PublicationShowcase from "./pages/PublicationShowcase";
 import SpatialExplorer from "./pages/SpatialExplorer";
 import SpatialManagement from "./pages/SpatialManagement";
 import SpatialDetail from "./pages/SpatialDetail";
@@ -42,6 +43,7 @@ function Router() {
     <Route path="/imports"><ProtectedPage><Imports /></ProtectedPage></Route>
     <Route path="/reports"><ProtectedPage><Reports /></ProtectedPage></Route>
     <Route path="/publication"><ProtectedPage><PublicationHub /></ProtectedPage></Route>
+    <Route path="/data-showcase"><PublicCityPage><PublicationShowcase /></PublicCityPage></Route>
     <Route path="/users"><ProtectedPage><Users /></ProtectedPage></Route>
     <Route path="/404" component={NotFound} />
     <Route component={NotFound} />

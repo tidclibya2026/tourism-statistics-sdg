@@ -10,6 +10,7 @@ const dbMock = vi.hoisted(() => ({
   getCityRankings: vi.fn(),
   getCityTrend: vi.fn(),
   getSpatialManagementData: vi.fn(),
+  getSpatialEntryOptions: vi.fn(),
   getSpatialObservationById: vi.fn(),
   getSpatialObservationsByIds: vi.fn(),
   getSpatialObservationForPeriod: vi.fn(),
@@ -94,6 +95,23 @@ describe("spatial and publication routers", () => {
 
     await expect(caller.publication.hub()).resolves.toEqual({ summary: { nationalApproved: 179 } });
     expect(dbMock.getPublicationHubData).toHaveBeenCalledOnce();
+  });
+
+  it("provides a public, read-only showcase without turning publication feeds ready", async () => {
+    dbMock.getPublicationHubData.mockResolvedValue({ summary: { spatialApproved: 659 }, destinations: [] });
+    const caller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });
+
+    await expect(caller.publication.showcase()).resolves.toEqual({ summary: { spatialApproved: 659 }, destinations: [] });
+    expect(dbMock.getPublicationHubData).toHaveBeenCalledOnce();
+  });
+
+  it("limits city-entry options to data-entry roles", async () => {
+    dbMock.getSpatialEntryOptions.mockResolvedValue({ cities: [{ id: 1, name: "طرابلس" }], indicators: [] });
+    const analyst = appRouter.createCaller(context("analyst"));
+    const viewer = appRouter.createCaller(context("viewer"));
+
+    await expect(analyst.spatial.entryOptions()).resolves.toMatchObject({ cities: [{ name: "طرابلس" }] });
+    await expect(viewer.spatial.entryOptions()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("keeps spatial management protected when public city reads are enabled", async () => {

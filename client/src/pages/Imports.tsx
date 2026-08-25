@@ -2,15 +2,19 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import QueryStateError from "@/components/QueryStateError";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { importTemplateUrl } from "@/lib/importTemplate";
 import { trpc } from "@/lib/trpc";
-import { Download, FileUp, FileWarning, MapPinned, ShieldCheck, UploadCloud } from "lucide-react";
+import { CalendarPlus, Download, FileUp, FileWarning, MapPinned, ShieldCheck, UploadCloud } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
 type ParsedRow = Record<string, unknown>;
 type ImportMode = "standard" | "city";
+const none = "none";
 const columnAliases: Record<string, string> = {
   "رمز المؤشر": "code", code: "code", "السنة": "year", year: "year", "الفترة": "period", period: "period",
   "الربع": "quarter", quarter: "quarter", "القيمة": "value", value: "value", "القيمة المستهدفة": "targetValue",
@@ -31,8 +35,10 @@ export default function Imports() {
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [issues, setIssues] = useState<{ rowNumber: number; field?: string; message: string; severity: "error" | "warning" }[]>([]);
   const [importMode, setImportMode] = useState<ImportMode>("standard");
+  const [cityEntry, setCityEntry] = useState({ cityId: none, indicatorId: none, year: "2022", value: "", source: "", notes: "" });
   const canImport = user?.role === "admin" || user?.role === "analyst";
   const history = trpc.imports.history.useQuery();
+  const entryOptions = trpc.spatial.entryOptions.useQuery(undefined, { enabled: canImport });
   const utils = trpc.useUtils();
   const process = trpc.imports.process.useMutation({
     onSuccess: (result) => {
@@ -57,6 +63,15 @@ export default function Imports() {
       utils.spatial.overview.invalidate();
       utils.spatial.cityRankings.invalidate();
       utils.spatial.cityTrend.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const saveCityEntry = trpc.spatial.upsertObservation.useMutation({
+    onSuccess: () => {
+      toast.success("تم حفظ قياس المدينة كمسودة موثقة بانتظار المراجعة المستقلة.");
+      setCityEntry({ cityId: none, indicatorId: none, year: "2022", value: "", source: "", notes: "" });
+      utils.spatial.management.invalidate();
+      utils.spatial.overview.invalidate();
     },
     onError: (error) => toast.error(error.message),
   });
@@ -102,6 +117,21 @@ export default function Imports() {
     : ["code", "year", "period", "quarter", "value", "targetValue"];
   const citySubmissionRows = rows.filter((row) => ["السنة المقدمة", "القيمة المقدمة", "المصدر الرسمي / اسم التقرير", "رقم الجدول أو الصفحة", "رقم المرجع أو الرابط"].some((key) => String(row[key] ?? "").trim() !== "")).length;
   const isPending = process.isPending || processCityTemplate.isPending;
+  const selectedIndicator = entryOptions.data?.indicators.find((indicator) => String(indicator.id) === cityEntry.indicatorId);
+  const quickEntryPending = saveCityEntry.isPending || entryOptions.isLoading;
+
+  function saveQuickCityEntry() {
+    if (cityEntry.cityId === none || cityEntry.indicatorId === none || !cityEntry.value || !cityEntry.source.trim() || !cityEntry.notes.trim()) {
+      toast.error("أكمل المدينة والمؤشر والقيمة والمصدر ورقم الجدول أو الصفحة.");
+      return;
+    }
+    const year = Number(cityEntry.year);
+    if (!Number.isInteger(year) || year < 2022) {
+      toast.error("هذا النموذج مخصص لسنوات ما بعد 2021 وسنوات مدنية كاملة فقط.");
+      return;
+    }
+    saveCityEntry.mutate({ spatialAreaId: Number(cityEntry.cityId), indicatorId: Number(cityEntry.indicatorId), year, period: "annual", quarter: "annual", value: Number(cityEntry.value), source: cityEntry.source.trim(), notes: cityEntry.notes.trim() });
+  }
 
   return <div className="space-y-6">
     <section><h1 className="page-title">استيراد البيانات</h1><p className="page-subtitle">استيراد القياسات من ملفات Excel أو CSV فقط، مع تحقق على مستوى كل صف وتقرير أخطاء واضح.</p></section>
@@ -117,6 +147,8 @@ export default function Imports() {
       </div>
       <div className="section-card p-5 md:p-6"><div className="flex items-center gap-2"><FileWarning className="h-5 w-5 text-[#b47730]" /><h2 className="font-bold text-[#173f3d]">قواعد التحقق</h2></div><div className="mt-4 space-y-3 text-sm leading-6 text-slate-600"><p>في نموذج المدن: لا تقبل إلا سنة مدنية كاملة مع رمز مدينة ومؤشر ووحدة مطابقة للمؤشر المنشور.</p><p>يلزم اسم التقرير الرسمي ورقم الجدول أو الصفحة ورقم المرجع أو الرابط؛ ولا تقبل القيم التقديرية أو الأصفار البديلة.</p><p>كل قياس مدني مستورد ينشأ <strong>مسودة</strong> فقط، ولا يظهر في الخريطة إلا بعد المراجعة المستقلة والاعتماد.</p><p>يبقى الاستيراد العام داعماً للحقول <span dir="ltr" className="font-mono text-xs">code, year, period, quarter, value</span> وفق قواعده الحالية.</p></div></div>
     </section>}
+
+    {canImport && <section className="rounded-2xl border border-[#b9d7cf] bg-gradient-to-l from-[#effaf6] to-white p-5 shadow-sm"><div className="flex items-start gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#dcefe8] text-[#0f766e]"><CalendarPlus className="h-5 w-5" /></span><div><h2 className="font-bold text-[#173f3d]">إدخال قياس مدينة بعد 2021</h2><p className="mt-1 text-xs leading-6 text-slate-600">أدخل قياساً سنوياً موثقاً مباشرة. يُحفظ كمسودة ولا يظهر في الخريطة إلا بعد المراجعة المستقلة واعتماد المسؤول.</p></div></div><div className="mt-5 grid gap-4 md:grid-cols-3"><div><Label>المدينة</Label><Select value={cityEntry.cityId} onValueChange={(cityId) => setCityEntry((form) => ({ ...form, cityId }))}><SelectTrigger className="mt-2"><SelectValue placeholder="اختر المدينة" /></SelectTrigger><SelectContent><SelectItem value={none}>اختر المدينة</SelectItem>{entryOptions.data?.cities.map((city) => <SelectItem key={city.id} value={String(city.id)}>{city.name}</SelectItem>)}</SelectContent></Select></div><div><Label>المؤشر ووحدة القياس</Label><Select value={cityEntry.indicatorId} onValueChange={(indicatorId) => setCityEntry((form) => ({ ...form, indicatorId }))}><SelectTrigger className="mt-2"><SelectValue placeholder="اختر المؤشر" /></SelectTrigger><SelectContent><SelectItem value={none}>اختر المؤشر</SelectItem>{entryOptions.data?.indicators.map((indicator) => <SelectItem key={indicator.id} value={String(indicator.id)}>{indicator.name} — {indicator.unit}</SelectItem>)}</SelectContent></Select></div><div><Label>السنة المدنية المكتملة</Label><Input className="mt-2" type="number" min="2022" max="2100" value={cityEntry.year} onChange={(event) => setCityEntry((form) => ({ ...form, year: event.target.value }))} /></div><div><Label>القيمة {selectedIndicator ? `(${selectedIndicator.unit})` : ""}</Label><Input className="mt-2" type="number" step="any" value={cityEntry.value} onChange={(event) => setCityEntry((form) => ({ ...form, value: event.target.value }))} placeholder="القيمة الرسمية" /></div><div className="md:col-span-2"><Label>المصدر الرسمي</Label><Input className="mt-2" value={cityEntry.source} onChange={(event) => setCityEntry((form) => ({ ...form, source: event.target.value }))} placeholder="اسم التقرير أو الجهة الرسمية" /></div><div className="md:col-span-2"><Label>رقم الجدول أو الصفحة والمرجع</Label><Input className="mt-2" value={cityEntry.notes} onChange={(event) => setCityEntry((form) => ({ ...form, notes: event.target.value }))} placeholder="مثال: جدول 4، صفحة 27 — رابط أو رقم مرجع" /></div><div className="flex items-end"><Button className="w-full bg-[#0f5c58] hover:bg-[#0a4845]" onClick={saveQuickCityEntry} disabled={quickEntryPending}><ShieldCheck className="ml-2 h-4 w-4" />حفظ مسودة المدينة</Button></div></div></section>}
 
     {rows.length > 0 && <section className="table-shell"><div className="border-b border-[#e8efec] p-4"><h2 className="font-bold text-[#173f3d]">معاينة الملف</h2><p className="mt-1 text-xs text-slate-500">أول خمسة صفوف من الملف قبل إرساله للخادم.</p></div><div className="overflow-x-auto"><table className="w-full min-w-[720px] text-right text-sm"><thead className="bg-[#f6f9f7] text-xs text-slate-500"><tr>{previewColumns.map((column) => <th className="px-4 py-3" key={column} dir={importMode === "city" ? "rtl" : "ltr"}>{column}</th>)}</tr></thead><tbody className="divide-y divide-[#edf2ef]">{rows.slice(0, 5).map((row, index) => <tr key={index}>{previewColumns.map((column) => <td className="px-4 py-3 text-slate-600" key={column}>{String(row[column] ?? "—")}</td>)}</tr>)}</tbody></table></div></section>}
     {issues.length > 0 && <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5"><h2 className="font-bold text-rose-800">تقرير أخطاء التحقق</h2><div className="mt-3 max-h-64 space-y-2 overflow-y-auto">{issues.map((issue, index) => <div className="rounded-lg bg-white/75 px-3 py-2 text-sm text-rose-800" key={`${issue.rowNumber}-${index}`}>الصف {issue.rowNumber}{issue.field ? ` · ${issue.field}` : ""}: {issue.message}</div>)}</div></section>}

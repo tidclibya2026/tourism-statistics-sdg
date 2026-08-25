@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { startLogin } from "@/const";
-import { LogIn, MapPinned, ShieldCheck } from "lucide-react";
+import { Layers3, LogIn, MapPinned, ShieldCheck } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function PublicCityLayout({ children }: { children: React.ReactNode }) {
@@ -17,6 +17,7 @@ export default function PublicCityLayout({ children }: { children: React.ReactNo
           </span>
         </button>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="hidden text-[#0f5c58] hover:bg-[#edf7f3] sm:inline-flex" onClick={() => setLocation("/data-showcase")}><Layers3 className="ml-1.5 h-4 w-4" />واجهات البيانات</Button>
           <span className="hidden items-center gap-1.5 text-xs text-slate-500 sm:flex"><ShieldCheck className="h-4 w-4 text-[#0f766e]" />بيانات منشورة ومعتمدة</span>
           <Button variant="outline" size="sm" className="border-[#b8d6ce] bg-white text-[#0f5c58] hover:bg-[#edf7f3]" onClick={() => startLogin()}>
             <LogIn className="ml-1.5 h-4 w-4" />دخول المنظومة

@@ -210,6 +210,7 @@ export const appRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "تعذر حساب تنبؤ المدينة." });
       }
     }),
+    entryOptions: analystProcedure.query(() => db.getSpatialEntryOptions()),
     management: analystProcedure.query(() => db.getSpatialManagementData()),
     createArea: adminProcedure.input(spatialAreaInput).mutation(async ({ ctx, input }) => {
       if (input.parentId) {
@@ -305,6 +306,7 @@ export const appRouter = router({
   }),
   publication: router({
     hub: protectedProcedure.query(() => db.getPublicationHubData()),
+    showcase: publicProcedure.query(() => db.getPublicationHubData()),
     feed: publicProcedure.input(z.object({ destination: z.enum(["visit_libya", "libya_atlas"]) })).query(async ({ input }) => {
       try {
         return await db.getPublicationFeed(input.destination);

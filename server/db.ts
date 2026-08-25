@@ -384,6 +384,16 @@ export async function getSpatialManagementData() {
   };
 }
 
+export async function getSpatialEntryOptions() {
+  const db = await getDb();
+  if (!db) return { cities: [], indicators: [] };
+  const [cities, publishedIndicators] = await Promise.all([
+    db.select({ id: spatialAreas.id, code: spatialAreas.code, name: spatialAreas.name }).from(spatialAreas).where(and(eq(spatialAreas.type, "city"), eq(spatialAreas.status, "active"))).orderBy(asc(spatialAreas.name)),
+    db.select({ id: indicators.id, code: indicators.code, name: indicators.name, unit: indicators.unit }).from(indicators).where(eq(indicators.status, "published")).orderBy(asc(indicators.name)),
+  ]);
+  return { cities, indicators: publishedIndicators };
+}
+
 export async function createSpatialArea(values: InsertSpatialArea) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
