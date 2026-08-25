@@ -5,6 +5,7 @@ const dbMock = vi.hoisted(() => ({
   getIndicatorById: vi.fn(),
   getPublicationFeed: vi.fn(),
   getPublicationHubData: vi.fn(),
+  getPublicationShowcaseData: vi.fn(),
   getSpatialAreaById: vi.fn(),
   getSpatialAreaDetail: vi.fn(),
   getCityRankings: vi.fn(),
@@ -98,11 +99,11 @@ describe("spatial and publication routers", () => {
   });
 
   it("provides a public, read-only showcase without turning publication feeds ready", async () => {
-    dbMock.getPublicationHubData.mockResolvedValue({ summary: { spatialApproved: 659 }, destinations: [] });
+    dbMock.getPublicationShowcaseData.mockResolvedValue({ summary: { spatialApproved: 659 }, destinations: [], analytics: { indicatorSeries: [], coverageByYear: [], gaps: [], exportRecords: [] } });
     const caller = appRouter.createCaller({ user: null, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] });
 
-    await expect(caller.publication.showcase()).resolves.toEqual({ summary: { spatialApproved: 659 }, destinations: [] });
-    expect(dbMock.getPublicationHubData).toHaveBeenCalledOnce();
+    await expect(caller.publication.showcase()).resolves.toEqual({ summary: { spatialApproved: 659 }, destinations: [], analytics: { indicatorSeries: [], coverageByYear: [], gaps: [], exportRecords: [] } });
+    expect(dbMock.getPublicationShowcaseData).toHaveBeenCalledOnce();
   });
 
   it("limits city-entry options to data-entry roles", async () => {

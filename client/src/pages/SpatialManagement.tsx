@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Post2021WorkflowPanel } from "@/components/Post2021WorkflowPanel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { isOfficialCityAccommodation2013Batch } from "@shared/officialCityAccommodationBatch";
 import { isOfficialCityGuides2009to2010Batch } from "@shared/officialCityGuides2009to2010Batch";
+import { getPost2021CityWorkflow } from "@shared/post2021CityWorkflow";
 import { BadgeCheck, Check, ClipboardPenLine, Edit3, FileCheck2, Landmark, ListChecks, MapPinned, Plus, RotateCcw, ShieldCheck, Trash2, X } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -43,12 +45,14 @@ export default function SpatialManagement() {
   const [guidesBatchApprovalNote, setGuidesBatchApprovalNote] = useState("");
   const [selectedObservationIds, setSelectedObservationIds] = useState<number[]>([]);
   const [bulkStatusNote, setBulkStatusNote] = useState("");
+  const [post2021WorkflowNote, setPost2021WorkflowNote] = useState("");
   const [areaForm, setAreaForm] = useState({ code: "", name: "", type: "city" as "region" | "city", parentId: none, geographicSource: "", boundaryReferenceTitle: "", boundaryReferenceUrl: "", boundaryStatus: "not_provided" as "not_provided" | "submitted" | "verified", status: "active" as "active" | "archived" });
   const [observationForm, setObservationForm] = useState({ spatialAreaId: none, indicatorId: none, year: String(currentYear), period: "annual" as "annual" | "quarterly", quarter: "annual", value: "", targetValue: "", source: "", notes: "" });
 
   const areas = data?.areas ?? [];
   const regions = useMemo(() => areas.filter((area) => area.type === "region" && area.status === "active"), [areas]);
   const activeAreas = useMemo(() => areas.filter((area) => area.status === "active"), [areas]);
+  const cityAreaIds = useMemo(() => new Set(areas.filter((area) => area.type === "city").map((area) => area.id)), [areas]);
   const refresh = () => Promise.all([utils.spatial.management.invalidate(), utils.spatial.overview.invalidate(), utils.publication.hub.invalidate()]);
   const resetArea = () => { setEditingAreaId(null); setAreaForm({ code: "", name: "", type: "city", parentId: none, geographicSource: "", boundaryReferenceTitle: "", boundaryReferenceUrl: "", boundaryStatus: "not_provided", status: "active" }); };
   const resetObservation = () => { setEditingObservationId(null); setObservationForm({ spatialAreaId: none, indicatorId: none, year: String(currentYear), period: "annual", quarter: "annual", value: "", targetValue: "", source: "", notes: "" }); };
@@ -61,7 +65,7 @@ export default function SpatialManagement() {
   const approveOfficialBatch = trpc.spatial.approveOfficialCityAccommodation2013Batch.useMutation({ onSuccess: (result) => { toast.success(`تم اعتماد ${numberFormat.format(result.approved)} قياساً للنشر.`); setBatchApprovalNote(""); refresh(); }, onError: (error) => toast.error(error.message) });
   const reviewOfficialGuidesBatch = trpc.spatial.reviewOfficialCityGuides2009to2010Batch.useMutation({ onSuccess: (result) => { toast.success(`تمت المراجعة المستقلة لـ ${numberFormat.format(result.reviewed)} قياسات مرشدين.`); setGuidesBatchReviewNote(""); refresh(); }, onError: (error) => toast.error(error.message) });
   const approveOfficialGuidesBatch = trpc.spatial.approveOfficialCityGuides2009to2010Batch.useMutation({ onSuccess: (result) => { toast.success(`تم اعتماد ${numberFormat.format(result.approved)} قياسات مرشدين للنشر.`); setGuidesBatchApprovalNote(""); refresh(); }, onError: (error) => toast.error(error.message) });
-  const bulkMoveStatus = trpc.spatial.bulkSetObservationStatus.useMutation({ onSuccess: (result) => { toast.success(result.status === "reviewed" ? `تمت المراجعة المستقلة لـ ${numberFormat.format(result.updated)} قياساً.` : `تم اعتماد ${numberFormat.format(result.updated)} قياساً للنشر.`); setSelectedObservationIds([]); setBulkStatusNote(""); refresh(); }, onError: (error) => toast.error(error.message) });
+  const bulkMoveStatus = trpc.spatial.bulkSetObservationStatus.useMutation({ onSuccess: (result) => { toast.success(result.status === "reviewed" ? `تمت المراجعة المستقلة لـ ${numberFormat.format(result.updated)} قياساً.` : `تم اعتماد ${numberFormat.format(result.updated)} قياساً للنشر.`); setSelectedObservationIds([]); setBulkStatusNote(""); setPost2021WorkflowNote(""); refresh(); }, onError: (error) => toast.error(error.message) });
   const deleteObservation = trpc.spatial.deleteObservation.useMutation({ onSuccess: () => { toast.success("تم حذف القياس المكاني."); refresh(); }, onError: (error) => toast.error(error.message) });
 
   const onAreaSubmit = (event: FormEvent) => {
@@ -88,6 +92,7 @@ export default function SpatialManagement() {
   const reviewRows = [...data.observations].sort((left, right) => reviewStatusPriority[left.verificationStatus] - reviewStatusPriority[right.verificationStatus] || right.id - left.id);
   const reviewableRows = reviewRows.filter((row) => row.verificationStatus === "draft" && row.enteredBy !== user?.id && user?.role !== "viewer");
   const approvableRows = reviewRows.filter((row) => row.verificationStatus === "reviewed" && isAdmin);
+  const post2021Workflow = getPost2021CityWorkflow(reviewRows, cityAreaIds, user?.id ?? null);
   const selectedRows = reviewRows.filter((row) => selectedObservationIds.includes(row.id));
   const reviewSelectionReady = selectedRows.length > 0 && selectedRows.every((row) => row.verificationStatus === "draft" && row.enteredBy !== user?.id);
   const approvalSelectionReady = selectedRows.length > 0 && isAdmin && selectedRows.every((row) => row.verificationStatus === "reviewed");
@@ -103,6 +108,7 @@ export default function SpatialManagement() {
       <Card className="border-[#dce8e4] shadow-sm"><CardContent className="p-5"><SectionTitle icon={Landmark} title="سجل المواقع والحدود" subtitle="تظهر المرجعية والاعتماد قبل استخدام أي طبقة حدودية في العرض." /><div className="mt-5 max-h-[650px] space-y-3 overflow-auto pl-1">{areas.map((area) => <div key={area.id} className="rounded-xl border border-[#e3ece9] bg-[#fbfdfc] p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold text-[#173f3c]">{area.name}</p><p className="mt-1 text-xs text-slate-500">{area.type === "region" ? "إقليم" : `مدينة${area.parentName ? ` — ${area.parentName}` : ""}`}</p></div><Badge className={`border-0 ${area.boundaryStatus === "verified" ? "bg-emerald-50 text-emerald-700" : area.boundaryStatus === "submitted" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-700"}`}>{boundaryLabels[area.boundaryStatus]}</Badge></div><p className="mt-2 text-xs leading-6 text-slate-600">{area.boundaryReferenceTitle ? `${area.boundaryReferenceTitle}${area.boundaryReferenceUrl ? ` — ${area.boundaryReferenceUrl}` : ""}` : "لم يسجل مرجع حدود رسمي بعد."}</p>{isAdmin && <Button size="sm" variant="ghost" className="mt-2 text-[#0f766e] hover:bg-[#e9f4f1]" onClick={() => editArea(area)}><Edit3 className="ml-1.5 h-3.5 w-3.5" />تحديث</Button>}</div>)}</div></CardContent></Card></section></TabsContent>
     </Tabs>
     <GuidesBatchPanel role={user?.role ?? "viewer"} draftCount={officialGuidesBatchDrafts.length} reviewCount={officialGuidesBatchReviews.length} reviewNote={guidesBatchReviewNote} approvalNote={guidesBatchApprovalNote} reviewPending={reviewOfficialGuidesBatch.isPending} approvalPending={approveOfficialGuidesBatch.isPending} onReviewNoteChange={setGuidesBatchReviewNote} onApprovalNoteChange={setGuidesBatchApprovalNote} onReview={() => reviewOfficialGuidesBatch.mutate({ confirmed: true, note: guidesBatchReviewNote.trim() || undefined })} onApprove={() => approveOfficialGuidesBatch.mutate({ confirmed: true, note: guidesBatchApprovalNote.trim() || undefined })} />
+    <Post2021WorkflowPanel role={user?.role ?? "viewer"} draftCount={post2021Workflow.drafts.length} reviewableCount={post2021Workflow.reviewable.length} reviewedCount={post2021Workflow.reviewed.length} note={post2021WorkflowNote} pending={bulkMoveStatus.isPending} onNoteChange={setPost2021WorkflowNote} onReview={() => bulkMoveStatus.mutate({ ids: post2021Workflow.reviewable.map((row) => row.id), status: "reviewed", confirmed: true, note: post2021WorkflowNote.trim() || undefined })} onApprove={() => bulkMoveStatus.mutate({ ids: post2021Workflow.reviewed.map((row) => row.id), status: "approved", confirmed: true, note: post2021WorkflowNote.trim() || undefined })} />
   </div>;
 }
 

@@ -306,7 +306,7 @@ export const appRouter = router({
   }),
   publication: router({
     hub: protectedProcedure.query(() => db.getPublicationHubData()),
-    showcase: publicProcedure.query(() => db.getPublicationHubData()),
+    showcase: publicProcedure.query(() => db.getPublicationShowcaseData()),
     feed: publicProcedure.input(z.object({ destination: z.enum(["visit_libya", "libya_atlas"]) })).query(async ({ input }) => {
       try {
         return await db.getPublicationFeed(input.destination);

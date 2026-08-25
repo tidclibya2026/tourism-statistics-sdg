@@ -24,6 +24,7 @@ import { buildCityRankings } from "../shared/cityRankings";
 import { buildCityTrendSeries } from "../shared/cityTrends";
 import { officialCityAccommodation2013Source, officialCityAccommodation2013Year } from "../shared/officialCityAccommodationBatch";
 import { officialCityGuides2009to2010IndicatorCode, officialCityGuides2009to2010Sources, officialCityGuides2009to2010Years } from "../shared/officialCityGuides2009to2010Batch";
+import { buildPublicationShowcaseAnalytics } from "../shared/publicationShowcase";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -653,6 +654,14 @@ export async function getPublicationHubData() {
       fields: ["indicator_code", "indicator_name", "year", "period", "value", "unit", "area_code", "area_name", "source", "verification_status"],
       qualityRule: "لا تشمل الحزمة إلا القياسات المعتمدة؛ وتبقى البيانات المكانية فارغة حتى اعتماد قياسات منسوبة إلى منطقة أو مدينة.",
     },
+  };
+}
+
+export async function getPublicationShowcaseData() {
+  const [hub, spatial] = await Promise.all([getPublicationHubData(), getSpatialOverview()]);
+  return {
+    ...hub,
+    analytics: buildPublicationShowcaseAnalytics(spatial.observations),
   };
 }
 
