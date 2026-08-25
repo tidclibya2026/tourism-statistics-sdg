@@ -740,6 +740,25 @@ export async function upsertObservation(values: InsertIndicatorObservation) {
   });
 }
 
+export async function getObservationById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(indicatorObservations).where(eq(indicatorObservations.id, id)).limit(1);
+  return result[0];
+}
+
+export async function getObservationForPeriod(values: Pick<InsertIndicatorObservation, "indicatorId" | "year" | "period" | "quarter">) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(indicatorObservations).where(and(
+    eq(indicatorObservations.indicatorId, values.indicatorId),
+    eq(indicatorObservations.year, values.year),
+    eq(indicatorObservations.period, values.period),
+    eq(indicatorObservations.quarter, values.quarter ?? "annual"),
+  )).limit(1);
+  return result[0];
+}
+
 export async function deleteObservation(id: number) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");

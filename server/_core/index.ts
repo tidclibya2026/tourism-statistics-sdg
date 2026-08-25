@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerPublicationApi } from "../publicationApi";
+import { applySecurityHeaders, createApiRateLimitMiddleware } from "./security";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -32,9 +33,13 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.disable("x-powered-by");
+  app.set("trust proxy", 1);
+  app.use(applySecurityHeaders);
+  // ملفات Excel تعالج في الواجهة إلى صفوف متحققة؛ لا يحتاج الخادم قبول أجسام ضخمة.
+  app.use(express.json({ limit: "8mb" }));
+  app.use(express.urlencoded({ limit: "8mb", extended: true, parameterLimit: 100 }));
+  app.use("/api", createApiRateLimitMiddleware());
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerPublicationApi(app);

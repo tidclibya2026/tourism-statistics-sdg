@@ -145,9 +145,29 @@ export const appRouter = router({
       if (!indicator) throw new TRPCError({ code: "NOT_FOUND", message: "المؤشر المختار غير موجود." });
       const unitErrors = validateUnitValues(indicator.unit, input.value, input.targetValue);
       if (unitErrors.length) throw new TRPCError({ code: "BAD_REQUEST", message: unitErrors[0] });
+      const existing = await db.getObservationForPeriod(input);
+      if (existing && (existing.verificationStatus !== "draft" || existing.enteredBy !== ctx.user.id)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "لا يمكن استبدال قياس قائم ما لم يكن مسودة تخص مُدخل القياس نفسه." });
+      }
       return db.upsertObservation({ ...input, value: String(input.value), targetValue: input.targetValue === null ? null : input.targetValue === undefined ? undefined : String(input.targetValue), enteredBy: ctx.user.id, verificationStatus: "draft" });
     }),
-    setStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: verificationSchema })).mutation(({ ctx, input }) => db.changeObservationStatus(input.id, input.status, ctx.user.id)),
+    setStatus: analystProcedure.input(z.object({ id: z.number().int().positive(), status: verificationSchema })).mutation(async ({ ctx, input }) => {
+      const observation = await db.getObservationById(input.id);
+      if (!observation) throw new TRPCError({ code: "NOT_FOUND", message: "القياس الوطني غير موجود." });
+      if (input.status === "draft") {
+        if (ctx.user.role !== "admin" || observation.verificationStatus !== "rejected") throw new TRPCError({ code: "FORBIDDEN", message: "إعادة القياس إلى مسودة موثقة محصورة بالمسؤول ومن حالة مرفوض فقط." });
+      }
+      if (input.status === "reviewed") {
+        if (observation.verificationStatus !== "draft") throw new TRPCError({ code: "BAD_REQUEST", message: "تقتصر المراجعة على المسودات." });
+        if (observation.enteredBy === ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "يلزم أن يراجع القياس محلل مستقل عن مُدخله." });
+      }
+      if (input.status === "approved") {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "اعتماد القياس للنشر محصور بدور المسؤول." });
+        if (observation.verificationStatus !== "reviewed") throw new TRPCError({ code: "BAD_REQUEST", message: "لا يمكن الاعتماد قبل إتمام المراجعة المستقلة." });
+      }
+      if (input.status === "rejected" && ctx.user.role !== "admin" && observation.enteredBy === ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "لا يمكن رفض قياسك الشخصي دون مراجع مستقل." });
+      return db.changeObservationStatus(input.id, input.status, ctx.user.id);
+    }),
     delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => db.deleteObservation(input.id)),
   }),
   forecast: router({

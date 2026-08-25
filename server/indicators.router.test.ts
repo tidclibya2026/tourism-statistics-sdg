@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dbMock = vi.hoisted(() => ({
   createIndicator: vi.fn(),
+  changeObservationStatus: vi.fn(),
+  getIndicatorById: vi.fn(),
+  getObservationById: vi.fn(),
+  getObservationForPeriod: vi.fn(),
   deleteIndicator: vi.fn(),
   getDashboardData: vi.fn(),
   getIndicatorsByCodes: vi.fn(),
@@ -24,6 +28,11 @@ import type { TrpcContext } from "./_core/context";
 function adminContext(): TrpcContext {
   const now = new Date();
   return { user: { id: 1, openId: "admin-test", name: "Admin", email: null, loginMethod: "manus", role: "admin", createdAt: now, updatedAt: now, lastSignedIn: now }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] };
+}
+
+function analystContext(): TrpcContext {
+  const now = new Date();
+  return { user: { id: 2, openId: "analyst-test", name: "Analyst", email: null, loginMethod: "manus", role: "analyst", createdAt: now, updatedAt: now, lastSignedIn: now }, req: { protocol: "https", headers: {} } as TrpcContext["req"], res: { clearCookie: () => undefined } as TrpcContext["res"] };
 }
 
 describe("indicators router", () => {
@@ -67,5 +76,28 @@ describe("indicators router", () => {
     expect(result.text).toContain("الملخص التنفيذي");
     expect(llmMock.invokeLLM).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-5-mini" }));
     expect(dbMock.getDashboardData).toHaveBeenCalledWith({ year: 2025, sdgReference: "SDG 8" });
+  });
+
+  it("يفرض المراجعة المستقلة واعتماد المسؤول على القياسات الوطنية", async () => {
+    dbMock.getObservationById.mockResolvedValue({ id: 21, verificationStatus: "draft", enteredBy: 9 });
+    dbMock.changeObservationStatus.mockResolvedValue(undefined);
+    const analyst = appRouter.createCaller(analystContext());
+    const admin = appRouter.createCaller(adminContext());
+
+    await expect(analyst.observations.setStatus({ id: 21, status: "approved" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await analyst.observations.setStatus({ id: 21, status: "reviewed" });
+    expect(dbMock.changeObservationStatus).toHaveBeenCalledWith(21, "reviewed", 2);
+
+    dbMock.getObservationById.mockResolvedValue({ id: 21, verificationStatus: "reviewed", enteredBy: 9 });
+    await admin.observations.setStatus({ id: 21, status: "approved" });
+    expect(dbMock.changeObservationStatus).toHaveBeenCalledWith(21, "approved", 1);
+  });
+
+  it("يرفض استبدال قياس وطني معتمد أو منسوب إلى مستخدم آخر", async () => {
+    dbMock.getIndicatorById.mockResolvedValue({ id: 4, unit: "عدد" });
+    dbMock.getObservationForPeriod.mockResolvedValue({ id: 25, verificationStatus: "approved", enteredBy: 9 });
+    const analyst = appRouter.createCaller(analystContext());
+    await expect(analyst.observations.upsert({ indicatorId: 4, year: 2024, period: "annual", quarter: "annual", value: 18 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(dbMock.upsertObservation).not.toHaveBeenCalled();
   });
 });

@@ -18,6 +18,8 @@ import type {
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
+export const isSessionBoundToCurrentApp = (appId: string) => appId === ENV.appId;
+
 export type SessionPayload = {
   openId: string;
   appId: string;
@@ -199,10 +201,7 @@ class SDKServer {
   async verifySession(
     cookieValue: string | undefined | null
   ): Promise<{ openId: string; appId: string; name: string } | null> {
-    if (!cookieValue) {
-      console.warn("[Auth] Missing session cookie");
-      return null;
-    }
+    if (!cookieValue) return null;
 
     try {
       const secretKey = this.getSessionSecret();
@@ -216,7 +215,12 @@ class SDKServer {
         !isNonEmptyString(appId) ||
         !isNonEmptyString(name)
       ) {
-        console.warn("[Auth] Session payload missing required fields");
+        console.warn("[Auth] Session payload missing required claims");
+        return null;
+      }
+
+      if (!isSessionBoundToCurrentApp(appId)) {
+        console.warn("[Auth] Session app binding mismatch");
         return null;
       }
 
@@ -225,8 +229,8 @@ class SDKServer {
         appId,
         name,
       };
-    } catch (error) {
-      console.warn("[Auth] Session verification failed", String(error));
+    } catch {
+      console.warn("[Auth] Session verification failed");
       return null;
     }
   }
