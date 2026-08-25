@@ -11,9 +11,11 @@ const dbMock = vi.hoisted(() => ({
   getCityTrend: vi.fn(),
   getSpatialManagementData: vi.fn(),
   getSpatialObservationById: vi.fn(),
+  getSpatialObservationsByIds: vi.fn(),
   getSpatialObservationForPeriod: vi.fn(),
   getSpatialOverview: vi.fn(),
   moveSpatialObservationStatus: vi.fn(),
+  moveSpatialObservationStatuses: vi.fn(),
   approveOfficialCityAccommodation2013Batch: vi.fn(),
   approveOfficialCityGuides2009to2010Batch: vi.fn(),
   reviewOfficialCityAccommodation2013Batch: vi.fn(),
@@ -174,6 +176,28 @@ describe("spatial and publication routers", () => {
 
     await expect(analyst.spatial.setObservationStatus({ id: 32, status: "reviewed" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(admin.spatial.setObservationStatus({ id: 32, status: "approved" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("moves only a homogeneous eligible selection through the governed bulk workflow", async () => {
+    const analyst = appRouter.createCaller(context("analyst"));
+    const admin = appRouter.createCaller(context("admin"));
+    dbMock.getSpatialObservationsByIds.mockResolvedValue([{ id: 41, verificationStatus: "draft", enteredBy: 8 }, { id: 42, verificationStatus: "draft", enteredBy: 9 }]);
+    dbMock.moveSpatialObservationStatuses.mockResolvedValue(2);
+
+    await expect(analyst.spatial.bulkSetObservationStatus({ ids: [41, 42], status: "reviewed", confirmed: true, note: "مراجعة دفعة مختارة." })).resolves.toEqual({ updated: 2, status: "reviewed" });
+    expect(dbMock.moveSpatialObservationStatuses).toHaveBeenCalledWith([41, 42], "reviewed", 7, "مراجعة دفعة مختارة.");
+
+    dbMock.getSpatialObservationsByIds.mockResolvedValue([{ id: 41, verificationStatus: "reviewed", enteredBy: 8 }, { id: 42, verificationStatus: "reviewed", enteredBy: 9 }]);
+    await expect(admin.spatial.bulkSetObservationStatus({ ids: [41, 42], status: "approved", confirmed: true })).resolves.toEqual({ updated: 2, status: "approved" });
+    await expect(analyst.spatial.bulkSetObservationStatus({ ids: [41, 42], status: "approved", confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects a bulk selection that mixes statuses or includes a self-entered draft", async () => {
+    const analyst = appRouter.createCaller(context("analyst"));
+    dbMock.getSpatialObservationsByIds.mockResolvedValue([{ id: 43, verificationStatus: "draft", enteredBy: 7 }, { id: 44, verificationStatus: "draft", enteredBy: 8 }]);
+    await expect(analyst.spatial.bulkSetObservationStatus({ ids: [43, 44], status: "reviewed", confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    dbMock.getSpatialObservationsByIds.mockResolvedValue([{ id: 43, verificationStatus: "draft", enteredBy: 8 }, { id: 44, verificationStatus: "reviewed", enteredBy: 9 }]);
+    await expect(analyst.spatial.bulkSetObservationStatus({ ids: [43, 44], status: "reviewed", confirmed: true })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("allows an administrator to withdraw an approved spatial observation with an auditable rejection", async () => {

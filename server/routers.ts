@@ -274,6 +274,25 @@ export const appRouter = router({
       if (input.status === "rejected" && ctx.user.role !== "admin" && observation.enteredBy === ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "لا يمكن رفض قياسك الشخصي دون مراجع مستقل." });
       return db.moveSpatialObservationStatus(input.id, input.status, ctx.user.id, input.note);
     }),
+    bulkSetObservationStatus: analystProcedure.input(z.object({
+      ids: z.array(z.number().int().positive()).min(1).max(1000).refine((ids) => new Set(ids).size === ids.length, "لا تكرر القياس نفسه في الاختيار."),
+      status: z.enum(["reviewed", "approved"]),
+      confirmed: z.literal(true),
+      note: z.string().trim().max(2000).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const observations = await db.getSpatialObservationsByIds(input.ids);
+      if (observations.length !== input.ids.length) throw new TRPCError({ code: "NOT_FOUND", message: "يتضمن الاختيار قياساً مكانياً غير موجود." });
+      if (input.status === "reviewed") {
+        if (observations.some((observation) => observation.verificationStatus !== "draft")) throw new TRPCError({ code: "BAD_REQUEST", message: "تقتصر المراجعة الجماعية على المسودات فقط." });
+        if (observations.some((observation) => observation.enteredBy === ctx.user.id)) throw new TRPCError({ code: "FORBIDDEN", message: "لا يمكن أن تراجع ضمن الدفعة قياساً أدخلته بنفسك." });
+      }
+      if (input.status === "approved") {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "الاعتماد الجماعي للنشر محصور بدور المسؤول." });
+        if (observations.some((observation) => observation.verificationStatus !== "reviewed")) throw new TRPCError({ code: "BAD_REQUEST", message: "تقتصر عملية الاعتماد الجماعية على القياسات ذات المراجعة المكتملة." });
+      }
+      const updated = await db.moveSpatialObservationStatuses(input.ids, input.status, ctx.user.id, input.note);
+      return { updated, status: input.status };
+    }),
     reviewOfficialCityAccommodation2013Batch: analystProcedure.input(z.object({ confirmed: z.literal(true), note: z.string().trim().max(2000).optional() })).mutation(({ ctx, input }) =>
       db.reviewOfficialCityAccommodation2013Batch(ctx.user.id, input.note)),
     approveOfficialCityAccommodation2013Batch: adminProcedure.input(z.object({ confirmed: z.literal(true), note: z.string().trim().max(2000).optional() })).mutation(({ ctx, input }) =>

@@ -458,6 +458,12 @@ export async function getSpatialObservationById(id: number) {
   return result[0];
 }
 
+export async function getSpatialObservationsByIds(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return [];
+  return db.select().from(spatialObservations).where(inArray(spatialObservations.id, ids));
+}
+
 export async function getSpatialObservationForPeriod(values: Pick<InsertSpatialObservation, "spatialAreaId" | "indicatorId" | "year" | "period" | "quarter">) {
   const db = await getDb();
   if (!db) return undefined;
@@ -489,6 +495,30 @@ export async function moveSpatialObservationStatus(id: number, status: "draft" |
     note: note ?? null,
     actedBy,
   });
+}
+
+export async function moveSpatialObservationStatuses(ids: number[], status: "reviewed" | "approved", actedBy: number, note?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  if (ids.length === 0) return 0;
+  const current = await getSpatialObservationsByIds(ids);
+  if (current.length !== ids.length) throw new Error("تعذر إيجاد جميع القياسات المحددة.");
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx.update(spatialObservations).set({
+      verificationStatus: status,
+      verifiedBy: status === "approved" ? actedBy : null,
+      verifiedAt: status === "approved" ? now : null,
+    }).where(inArray(spatialObservations.id, ids));
+    await tx.insert(spatialObservationReviewEvents).values(current.map((observation) => ({
+      spatialObservationId: observation.id,
+      fromStatus: observation.verificationStatus,
+      toStatus: status,
+      note: note ?? null,
+      actedBy,
+    })));
+  });
+  return current.length;
 }
 
 export async function reviewOfficialCityAccommodation2013Batch(actedBy: number, note?: string) {
