@@ -44,6 +44,40 @@ export function buildPublicationCoverage(records: PublicationRecord[], filters: 
   return Array.from(grouped.entries()).map(([year, yearRecords]) => ({ year, records: yearRecords.length, cities: new Set(yearRecords.map((record) => record.areaCode)).size })).sort((left, right) => left.year - right.year);
 }
 
+export function summarizePublicationValueRange(records: PublicationRecord[], filters: PublicationViewFilters) {
+  if (!filters.cityCode || filters.cityCode === allCitiesFilter || !filters.indicatorCode) return null;
+  const matched = filterPublicationRecords(records, filters);
+  if (!matched.length) return null;
+  const ascending = [...matched].sort((left, right) => left.value - right.value || left.year - right.year);
+  return { minimum: ascending[0], maximum: ascending[ascending.length - 1], records: matched.length };
+}
+
+export function buildCityComparisonSeries(records: PublicationRecord[], input: { year: string; indicatorCode: string; primaryCityCode: string; comparisonCityCode: string }) {
+  const primary = buildPublicationSeries(records, { year: input.year, indicatorCode: input.indicatorCode, cityCode: input.primaryCityCode });
+  const comparison = buildPublicationSeries(records, { year: input.year, indicatorCode: input.indicatorCode, cityCode: input.comparisonCityCode });
+  const byYear = new Map<number, { year: number; primaryValue?: number; comparisonValue?: number }>();
+  primary.forEach((item) => byYear.set(item.year, { ...(byYear.get(item.year) ?? { year: item.year }), primaryValue: item.value }));
+  comparison.forEach((item) => byYear.set(item.year, { ...(byYear.get(item.year) ?? { year: item.year }), comparisonValue: item.value }));
+  return Array.from(byYear.values()).sort((left, right) => left.year - right.year);
+}
+
+export function buildCityCoverageComparison(records: PublicationRecord[], input: { year: string; primaryCityCode: string; comparisonCityCode: string }) {
+  const primary = buildPublicationCoverage(records, { year: input.year, cityCode: input.primaryCityCode });
+  const comparison = buildPublicationCoverage(records, { year: input.year, cityCode: input.comparisonCityCode });
+  const byYear = new Map<number, { year: number; primaryRecords?: number; comparisonRecords?: number }>();
+  primary.forEach((item) => byYear.set(item.year, { ...(byYear.get(item.year) ?? { year: item.year }), primaryRecords: item.records }));
+  comparison.forEach((item) => byYear.set(item.year, { ...(byYear.get(item.year) ?? { year: item.year }), comparisonRecords: item.records }));
+  return Array.from(byYear.values()).sort((left, right) => left.year - right.year);
+}
+
+export function getCityComparisonRecords(records: PublicationRecord[], filters: Omit<PublicationViewFilters, "cityCode"> & { primaryCityCode: string; comparisonCityCode: string }) {
+  return records.filter((record) =>
+    (filters.year === allYearsFilter || record.year === Number(filters.year)) &&
+    (!filters.indicatorCode || record.indicatorCode === filters.indicatorCode) &&
+    [filters.primaryCityCode, filters.comparisonCityCode].includes(record.areaCode),
+  );
+}
+
 export function searchAndSortPublicationRecords(records: PublicationRecord[], query: string, sort: "city" | "indicator" | "year" | "value", direction: "asc" | "desc") {
   const normalizedQuery = query.trim().toLocaleLowerCase("ar");
   const multiplier = direction === "asc" ? 1 : -1;
