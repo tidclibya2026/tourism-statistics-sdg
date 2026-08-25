@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addCityComparisonDifferences, allCitiesFilter, buildCityComparisonSeries, buildCityCoverageComparison, buildPublicationCoverage, buildPublicationSeries, calculateCityDifference, filterPublicationRecords, getCityComparisonRecords, getPublicationCities, getPublicationCityRank, searchAndSortPublicationRecords, summarizePublicationValueRange } from "../shared/publicationViewFilters";
+import { addCityComparisonDifferences, allCitiesFilter, assessComparisonThreshold, buildCityComparisonSeries, buildCityCoverageComparison, buildPublicationCityRankHistory, buildPublicationCoverage, buildPublicationSeries, calculateCityDifference, filterPublicationRecords, getCityComparisonRecords, getPublicationCities, getPublicationCityRank, searchAndSortPublicationRecords, summarizePublicationValueRange } from "../shared/publicationViewFilters";
 
 const records = [
   { areaCode: "TRIPOLI", areaName: "طرابلس", indicatorCode: "COMPANIES", indicatorName: "الشركات", unit: "عدد", year: 2021, value: 4, source: "س1" },
@@ -36,5 +36,15 @@ describe("فلترة وعرض قياسات واجهات السياحة الرق�
     expect(addCityComparisonDifferences([{ year: 2021, primaryValue: 4, comparisonValue: 6 }])).toMatchObject([{ difference: -2, percentage: -33.33333333333333 }]);
     expect(getPublicationCityRank(records, { year: "2021", indicatorCode: "COMPANIES", cityCode: "TRIPOLI" })).toEqual({ rank: 2, total: 2, year: 2021, value: 4, unit: "عدد" });
     expect(getPublicationCityRank(records, { year: "all", indicatorCode: "COMPANIES", cityCode: "TRIPOLI" })).toMatchObject({ rank: 1, total: 1, year: 2022, value: 8 });
+  });
+
+  it("يبني سجل رتبة المدينة ويقيّم حد فرق المقارنة بالقيمة المطلقة", () => {
+    expect(buildPublicationCityRankHistory(records, { indicatorCode: "COMPANIES", cityCode: "TRIPOLI" })).toEqual([
+      { year: 2021, rank: 2, total: 2, value: 4, unit: "عدد" },
+      { year: 2022, rank: 1, total: 1, value: 8, unit: "عدد" },
+    ]);
+    expect(assessComparisonThreshold(-33.5, 30)).toEqual({ available: true, exceeded: true, magnitude: 33.5 });
+    expect(assessComparisonThreshold(20, 30)).toEqual({ available: true, exceeded: false, magnitude: 20 });
+    expect(assessComparisonThreshold(null, 30)).toEqual({ available: false, exceeded: false, magnitude: null });
   });
 });

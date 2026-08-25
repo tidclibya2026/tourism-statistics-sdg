@@ -82,6 +82,23 @@ export function getPublicationCityRank(records: PublicationRecord[], input: { ye
   return { rank, total: cityValues.length, year: target.year, value: target.value, unit: target.unit };
 }
 
+export function buildPublicationCityRankHistory(records: PublicationRecord[], input: { indicatorCode: string; cityCode: string }) {
+  if (!input.cityCode || input.cityCode === allCitiesFilter || !input.indicatorCode) return [];
+  const selectedByYear = new Map<number, PublicationRecord>();
+  records.filter((record) => record.areaCode === input.cityCode && record.indicatorCode === input.indicatorCode).forEach((record) => selectedByYear.set(record.year, record));
+  return Array.from(selectedByYear.values()).map((target) => {
+    const scoped = records.filter((record) => record.indicatorCode === target.indicatorCode && record.unit === target.unit && record.year === target.year);
+    const cityValues = Array.from(new Map(scoped.map((record) => [record.areaCode, record])).values());
+    return { year: target.year, rank: 1 + cityValues.filter((record) => record.value > target.value).length, total: cityValues.length, value: target.value, unit: target.unit };
+  }).sort((left, right) => left.year - right.year);
+}
+
+export function assessComparisonThreshold(percentage: number | null | undefined, threshold: number | null) {
+  if (percentage === undefined || percentage === null || threshold === null) return { available: false, exceeded: false, magnitude: null };
+  const magnitude = Math.abs(percentage);
+  return { available: true, exceeded: magnitude > threshold, magnitude };
+}
+
 export function buildCityCoverageComparison(records: PublicationRecord[], input: { year: string; primaryCityCode: string; comparisonCityCode: string }) {
   const primary = buildPublicationCoverage(records, { year: input.year, cityCode: input.primaryCityCode });
   const comparison = buildPublicationCoverage(records, { year: input.year, cityCode: input.comparisonCityCode });
