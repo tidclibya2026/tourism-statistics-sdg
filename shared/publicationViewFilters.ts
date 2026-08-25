@@ -3,6 +3,14 @@ import { allYearsFilter } from "./publicationChartInteractions";
 export const allCitiesFilter = "all";
 export type PublicationRankDirection = "descending" | "ascending";
 
+export function getPublicationRankingMethod(indicator: { code: string; name: string; unit: string }) {
+  const normalized = `${indicator.code} ${indicator.name}`.toLocaleLowerCase("ar");
+  const lowerIsBetter = ["نفايات", "انبعاث", "بطالة", "حوادث", "مخالفات", "إغلاق", "خسائر"].some((term) => normalized.includes(term));
+  return lowerIsBetter
+    ? { direction: "ascending" as const, label: "الأدنى قيمة أولاً", rationale: "هذا المؤشر يقيس عبئاً أو أثراً سلبياً؛ القيمة الأقل تمنح رتبة أفضل." }
+    : { direction: "descending" as const, label: "الأعلى قيمة أولاً", rationale: `هذا المؤشر يقيس حجماً أو طاقة أو استثماراً سياحياً بوحدة ${indicator.unit}؛ القيمة الأعلى تمنح رتبة أفضل.` };
+}
+
 export type PublicationRecord = {
   areaCode: string;
   areaName: string;

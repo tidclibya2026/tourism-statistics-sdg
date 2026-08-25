@@ -21,6 +21,13 @@ export type PublicationAnalysisExport = {
   thresholdExceeded?: boolean;
 };
 
+export type PublicationTopCitiesExport = {
+  indicatorName: string;
+  unit: string;
+  directionLabel: string;
+  groups: { year: number; cities: { rank: number; areaName: string; value: number; unit: string }[] }[];
+};
+
 type CellValue = string | number;
 
 function appendRows(sheet: ExcelJS.Worksheet, rows: Record<string, CellValue>[]) {
@@ -33,6 +40,33 @@ function appendRows(sheet: ExcelJS.Worksheet, rows: Record<string, CellValue>[])
   header.alignment = { horizontal: "right", vertical: "middle" };
   sheet.views = [{ rightToLeft: true }];
   sheet.columns.forEach((column) => { column.width = 23; });
+}
+
+export function toTopCitiesExportRows(input: PublicationTopCitiesExport) {
+  const rows = input.groups.flatMap((group) => group.cities.map((city) => ({
+    السنة: group.year,
+    الرتبة: city.rank,
+    المدينة: city.areaName,
+    القيمة: city.value,
+    الوحدة: city.unit,
+    المؤشر: input.indicatorName,
+    "اتجاه الترتيب": input.directionLabel,
+  })));
+  return rows.length ? rows : [{ ملاحظة: "لا توجد قائمة مدن مطابقة للتصدير ضمن الفلاتر الحالية." }];
+}
+
+export async function downloadTopCitiesWorkbook(input: PublicationTopCitiesExport) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "المرصد الوطني للإحصاءات والمؤشرات السياحية";
+  appendRows(workbook.addWorksheet("أفضل خمس مدن"), toTopCitiesExportRows(input));
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `أفضل-خمس-مدن-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function toPublicationExportSheets(data: PublicationShowcaseExportData, generatedAt = new Date().toLocaleString("ar-LY"), analysis?: PublicationAnalysisExport) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toPublicationExportSheets } from "../client/src/lib/publicationShowcaseExport";
+import { toPublicationExportSheets, toTopCitiesExportRows } from "../client/src/lib/publicationShowcaseExport";
 
 describe("تصدير واجهات البيانات السياحية", () => {
   it("يضم القياسات المعتمدة وفجوات المواقع والاستثمار في أوراق منفصلة", () => {
@@ -26,5 +26,9 @@ describe("تصدير واجهات البيانات السياحية", () => {
     expect(sheets["فجوات المصادر"]).toEqual(expect.arrayContaining([expect.objectContaining({ الفئة: "المواقع السياحية الموثقة", الحالة: "مصدر سنوي مدني مطلوب" })]));
     expect(sheets["تغير رتبة المدينة"][0]).toMatchObject({ المدينة: "طرابلس", الرتبة: 1, "اتجاه الترتيب": "الأعلى قيمة أولاً" });
     expect(sheets["تنبيه فرق المقارنة"][0]).toMatchObject({ "مدينة المقارنة": "بنغازي", "الحد المحدد (%)": 25, الحالة: "تم تجاوز الحد" });
+  });
+
+  it("يهيئ ملف Excel مستقل لقائمة أفضل خمس مدن فقط", () => {
+    expect(toTopCitiesExportRows({ indicatorName: "الشركات", unit: "عدد", directionLabel: "الأعلى قيمة أولاً", groups: [{ year: 2021, cities: [{ rank: 1, areaName: "طرابلس", value: 10, unit: "عدد" }] }] })).toEqual([{ السنة: 2021, الرتبة: 1, المدينة: "طرابلس", القيمة: 10, الوحدة: "عدد", المؤشر: "الشركات", "اتجاه الترتيب": "الأعلى قيمة أولاً" }]);
   });
 });
