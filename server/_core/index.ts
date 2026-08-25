@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerPublicationApi } from "../publicationApi";
 import { applySecurityHeaders, createApiRateLimitMiddleware } from "./security";
+import { dependencyReviewScheduleHandler } from "../dependencyReviewSchedule";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -43,6 +44,7 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerPublicationApi(app);
+  app.post("/api/scheduled/dependency-review", dependencyReviewScheduleHandler);
   // tRPC API
   app.use(
     "/api/trpc",

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { roleLabels } from "@/lib/tourism";
+import { trpc } from "@/lib/trpc";
 import {
   BarChart3,
   Database,
@@ -50,11 +51,13 @@ const navigation: { icon: typeof LayoutDashboard; label: string; path: string; a
   { icon: FileBarChart, label: "التقارير والتصدير", path: "/reports", access: ["admin", "analyst", "viewer"] },
   { icon: Send, label: "مركز النشر الموحد", path: "/publication", access: ["admin", "analyst", "viewer"] },
   { icon: Settings2, label: "المستخدمون والصلاحيات", path: "/users", access: ["admin"] },
+  { icon: ShieldCheck, label: "مراجعة الأمان", path: "/security", access: ["admin"] },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { loading, user, logout } = useAuth();
   const [location, setLocation] = useLocation();
+  const capabilities = trpc.auth.administrativeCapabilities.useQuery(undefined, { enabled: user?.role === "admin", retry: false, refetchOnWindowFocus: false });
 
   if (loading) return <DashboardLayoutSkeleton />;
 
@@ -76,7 +79,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const menuItems = navigation.filter((item) => item.access.includes(user.role));
+  const menuItems = navigation
+    .filter((item) => item.access.includes(user.role))
+    .filter((item) => item.path !== "/security" || capabilities.data?.canReviewSecurity === true);
   const activeTitle = menuItems.find((item) => item.path === location)?.label ?? "منصة المؤشرات";
 
   return (

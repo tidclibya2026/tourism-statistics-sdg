@@ -23,6 +23,84 @@ export const users = mysqlTable("users", {
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
+/** Explicit allow-list for administrators who may operate sensitive controls. */
+export const administrativeMembers = mysqlTable(
+  "administrativeMembers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    status: mysqlEnum("status", ["active", "suspended"]).default("active").notNull(),
+    canManageRoles: int("canManageRoles").default(0).notNull(),
+    canApproveReleases: int("canApproveReleases").default(0).notNull(),
+    canReviewSecurity: int("canReviewSecurity").default(0).notNull(),
+    grantedBy: int("grantedBy").references(() => users.id, { onDelete: "set null" }),
+    grantedAt: timestamp("grantedAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("administrative_members_user_unique").on(table.userId),
+    index("administrative_members_status_idx").on(table.status),
+  ],
+);
+
+/** Audit trail for membership grants, suspensions, and role changes. */
+export const administrativeAccessEvents = mysqlTable(
+  "administrativeAccessEvents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    targetUserId: int("targetUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    actorUserId: int("actorUserId").notNull().references(() => users.id, { onDelete: "restrict" }),
+    action: mysqlEnum("action", ["member_granted", "member_updated", "member_suspended", "role_updated"]).notNull(),
+    detail: varchar("detail", { length: 500 }),
+    actedAt: timestamp("actedAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("administrative_access_target_idx").on(table.targetUserId),
+    index("administrative_access_actor_idx").on(table.actorUserId),
+  ],
+);
+
+/** Immutable summaries from manual or scheduled dependency vulnerability reviews. */
+export const dependencyReviewRuns = mysqlTable(
+  "dependencyReviewRuns",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    trigger: mysqlEnum("trigger", ["manual", "scheduled"]).notNull(),
+    status: mysqlEnum("status", ["completed", "failed"]).notNull(),
+    criticalCount: int("criticalCount").default(0).notNull(),
+    highCount: int("highCount").default(0).notNull(),
+    moderateCount: int("moderateCount").default(0).notNull(),
+    lowCount: int("lowCount").default(0).notNull(),
+    summary: text("summary").notNull(),
+    errorMessage: varchar("errorMessage", { length: 1000 }),
+    initiatedBy: int("initiatedBy").references(() => users.id, { onDelete: "set null" }),
+    startedAt: timestamp("startedAt").defaultNow().notNull(),
+    completedAt: timestamp("completedAt"),
+  },
+  (table) => [
+    index("dependency_review_started_idx").on(table.startedAt),
+    index("dependency_review_status_idx").on(table.status),
+  ],
+);
+
+/** A durable, staging-only mapping between the platform cron task and its security review job. */
+export const dependencyReviewSchedules = mysqlTable(
+  "dependencyReviewSchedules",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    environment: mysqlEnum("environment", ["staging", "production"]).default("staging").notNull(),
+    enabled: int("enabled").default(0).notNull(),
+    scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
+    lastRunAt: timestamp("lastRunAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("dependency_review_schedule_task_unique").on(table.scheduleCronTaskUid),
+    index("dependency_review_schedule_environment_idx").on(table.environment),
+  ],
+);
+
 export const indicators = mysqlTable(
   "indicators",
   {

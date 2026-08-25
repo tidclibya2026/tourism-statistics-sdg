@@ -16,6 +16,7 @@ const dbMock = vi.hoisted(() => ({
   getSpatialObservationsByIds: vi.fn(),
   getSpatialObservationForPeriod: vi.fn(),
   getSpatialOverview: vi.fn(),
+  hasAdministrativeCapability: vi.fn(),
   moveSpatialObservationStatus: vi.fn(),
   moveSpatialObservationStatuses: vi.fn(),
   approveOfficialCityAccommodation2013Batch: vi.fn(),
@@ -41,7 +42,10 @@ function context(role: "admin" | "analyst" | "viewer"): TrpcContext {
 }
 
 describe("spatial and publication routers", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dbMock.hasAdministrativeCapability.mockResolvedValue(true);
+  });
 
   it("forwards spatial filters and lets the public read approved spatial content", async () => {
     dbMock.getSpatialOverview.mockResolvedValue({ summary: { approvedObservations: 0 } });
@@ -130,7 +134,7 @@ describe("spatial and publication routers", () => {
     expect(dbMock.getPublicationFeed).toHaveBeenCalledWith("visit_libya");
   });
 
-  it("restricts destination readiness changes to administrators", async () => {
+  it("restricts destination readiness changes to explicitly authorized release approvers", async () => {
     dbMock.updatePublicationDestinationStatus.mockResolvedValue(undefined);
     const admin = appRouter.createCaller(context("admin"));
     const viewer = appRouter.createCaller(context("viewer"));
@@ -139,6 +143,9 @@ describe("spatial and publication routers", () => {
     await admin.publication.updateStatus({ id: 1, status: "ready", confirmed: true });
     expect(dbMock.updatePublicationDestinationStatus).toHaveBeenCalledWith(1, "ready", 7);
     await expect(viewer.publication.updateStatus({ id: 1, status: "ready", confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    dbMock.hasAdministrativeCapability.mockResolvedValue(false);
+    await expect(admin.publication.updateStatus({ id: 1, status: "ready", confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("stores spatial measurements as drafts after validating an active location and the indicator unit", async () => {

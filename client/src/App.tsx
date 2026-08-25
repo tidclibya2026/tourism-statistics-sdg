@@ -20,6 +20,7 @@ import SpatialExplorer from "./pages/SpatialExplorer";
 import SpatialManagement from "./pages/SpatialManagement";
 import SpatialDetail from "./pages/SpatialDetail";
 import Users from "./pages/Users";
+import SecurityReview from "./pages/SecurityReview";
 import { Route, Switch } from "wouter";
 
 function ProtectedPage({ children }: { children: React.ReactNode }) { return <DashboardLayout>{children}</DashboardLayout>; }
@@ -45,6 +46,7 @@ function Router() {
     <Route path="/publication"><ProtectedPage><PublicationHub /></ProtectedPage></Route>
     <Route path="/data-showcase"><PublicCityPage><PublicationShowcase /></PublicCityPage></Route>
     <Route path="/users"><ProtectedPage><Users /></ProtectedPage></Route>
+    <Route path="/security"><ProtectedPage><SecurityReview /></ProtectedPage></Route>
     <Route path="/404" component={NotFound} />
     <Route component={NotFound} />
   </Switch>;

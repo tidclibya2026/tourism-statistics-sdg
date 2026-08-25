@@ -1,6 +1,10 @@
-import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
+  administrativeAccessEvents,
+  administrativeMembers,
+  dependencyReviewRuns,
+  dependencyReviewSchedules,
   type InsertIndicator,
   type InsertIndicatorObservation,
   type InsertSpatialArea,
@@ -83,10 +87,114 @@ export async function listUsers() {
   return db.select().from(users).orderBy(asc(users.name));
 }
 
-export async function updateUserRole(id: number, role: "admin" | "analyst" | "viewer") {
+export async function getAdministrativeMemberByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(administrativeMembers).where(eq(administrativeMembers.userId, userId)).limit(1);
+  return result[0];
+}
+
+export async function hasAdministrativeCapability(userId: number, capability: "canManageRoles" | "canApproveReleases" | "canReviewSecurity") {
+  const member = await getAdministrativeMemberByUserId(userId);
+  return Boolean(member && member.status === "active" && member[capability] === 1);
+}
+
+export async function getAdministrativeAccessOverview() {
+  const db = await getDb();
+  if (!db) return { members: [], events: [] };
+  const [members, events] = await Promise.all([
+    db.select({ member: administrativeMembers, user: users }).from(administrativeMembers).innerJoin(users, eq(administrativeMembers.userId, users.id)).orderBy(asc(users.name)),
+    db.select({ event: administrativeAccessEvents, target: users }).from(administrativeAccessEvents).innerJoin(users, eq(administrativeAccessEvents.targetUserId, users.id)).orderBy(desc(administrativeAccessEvents.actedAt)).limit(30),
+  ]);
+  return { members, events };
+}
+
+export async function upsertAdministrativeMember(values: { userId: number; status: "active" | "suspended"; canManageRoles: boolean; canApproveReleases: boolean; canReviewSecurity: boolean }, actorUserId: number) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
-  await db.update(users).set({ role }).where(eq(users.id, id));
+  await db.transaction(async (tx) => {
+    const existing = (await tx.select().from(administrativeMembers).where(eq(administrativeMembers.userId, values.userId)).limit(1))[0];
+    await tx.insert(administrativeMembers).values({
+      userId: values.userId,
+      status: values.status,
+      canManageRoles: values.canManageRoles ? 1 : 0,
+      canApproveReleases: values.canApproveReleases ? 1 : 0,
+      canReviewSecurity: values.canReviewSecurity ? 1 : 0,
+      grantedBy: actorUserId,
+    }).onDuplicateKeyUpdate({ set: {
+      status: values.status,
+      canManageRoles: values.canManageRoles ? 1 : 0,
+      canApproveReleases: values.canApproveReleases ? 1 : 0,
+      canReviewSecurity: values.canReviewSecurity ? 1 : 0,
+      grantedBy: actorUserId,
+    } });
+    const action = !existing ? "member_granted" : values.status === "suspended" ? "member_suspended" : "member_updated";
+    await tx.insert(administrativeAccessEvents).values({
+      targetUserId: values.userId,
+      actorUserId,
+      action,
+      detail: `roles=${values.canManageRoles ? "1" : "0"},release=${values.canApproveReleases ? "1" : "0"},security=${values.canReviewSecurity ? "1" : "0"}`,
+    });
+  });
+}
+
+export async function updateUserRole(id: number, role: "admin" | "analyst" | "viewer", actorUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({ role }).where(eq(users.id, id));
+    await tx.insert(administrativeAccessEvents).values({ targetUserId: id, actorUserId, action: "role_updated", detail: `role=${role}` });
+  });
+}
+
+export async function listDependencyReviewRuns(limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(dependencyReviewRuns).orderBy(desc(dependencyReviewRuns.startedAt)).limit(Math.min(Math.max(limit, 1), 50));
+}
+
+export async function recordDependencyReviewRun(values: {
+  trigger: "manual" | "scheduled";
+  status: "completed" | "failed";
+  criticalCount: number;
+  highCount: number;
+  moderateCount: number;
+  lowCount: number;
+  summary: string;
+  errorMessage?: string | null;
+  initiatedBy?: number | null;
+  startedAt: Date;
+  completedAt: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const result = await db.insert(dependencyReviewRuns).values({
+    ...values,
+    summary: values.summary.slice(0, 5000),
+    errorMessage: values.errorMessage?.slice(0, 1000) ?? null,
+  });
+  return Number(result[0].insertId);
+}
+
+export async function getDependencyReviewScheduleByTaskUid(taskUid: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(dependencyReviewSchedules).where(eq(dependencyReviewSchedules.scheduleCronTaskUid, taskUid)).limit(1);
+  return result[0];
+}
+
+/** Claims a short execution window so platform retries cannot produce duplicate reports. */
+export async function claimDependencyReviewScheduleRun(taskUid: string, now = new Date()) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const retryWindowStart = new Date(now.getTime() - 10 * 60 * 1000);
+  const result = await db.update(dependencyReviewSchedules).set({ lastRunAt: now }).where(and(
+    eq(dependencyReviewSchedules.scheduleCronTaskUid, taskUid),
+    eq(dependencyReviewSchedules.environment, "staging"),
+    eq(dependencyReviewSchedules.enabled, 1),
+    or(isNull(dependencyReviewSchedules.lastRunAt), lt(dependencyReviewSchedules.lastRunAt, retryWindowStart)),
+  ));
+  return Number((result as unknown as [{ affectedRows?: number }])[0]?.affectedRows ?? 0) === 1;
 }
 
 export async function listIndicators(filters?: { axis?: "اقتصادي" | "اجتماعي" | "بيئي"; framework?: "UNWTO" | "SDG"; sdgReference?: "SDG 8" | "SDG 11" | "SDG 12" | "SDG 14" | "SDG 17"; status?: "draft" | "published" | "archived" }) {

@@ -2,9 +2,11 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { ENV } from "./_core/env";
 import { systemRouter } from "./_core/systemRouter";
-import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, ownerProcedure, protectedProcedure, publicProcedure, releaseApprovalProcedure, roleManagementProcedure, router, securityReviewProcedure } from "./_core/trpc";
 import * as db from "./db";
+import { runDependencyReview } from "./dependencyReview";
 import { validateImportedObservations } from "./validation";
 import { validateImportedCityStatistics } from "../shared/cityStatisticsImport";
 import { calculateAnnualForecast } from "./forecast";
@@ -86,6 +88,15 @@ export const appRouter = router({
   auth: router({
     me: protectedProcedure.query((opts) => opts.ctx.user),
     viewer: publicProcedure.query((opts) => opts.ctx.user),
+    administrativeCapabilities: protectedProcedure.query(async ({ ctx }) => {
+      const isOwner = Boolean(ENV.ownerOpenId) && ctx.user.openId === ENV.ownerOpenId;
+      const isAdmin = ctx.user.role === "admin";
+      return {
+        canManageRoles: isAdmin && (isOwner || await db.hasAdministrativeCapability(ctx.user.id, "canManageRoles")),
+        canApproveReleases: isAdmin && (isOwner || await db.hasAdministrativeCapability(ctx.user.id, "canApproveReleases")),
+        canReviewSecurity: isAdmin && (isOwner || await db.hasAdministrativeCapability(ctx.user.id, "canReviewSecurity")),
+      };
+    }),
     logout: protectedProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -334,11 +345,21 @@ export const appRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: error instanceof Error ? error.message : "تعذر تحميل حزمة النشر." });
       }
     }),
-    updateStatus: adminProcedure.input(z.object({ id: z.number().int().positive(), status: publicationStatusSchema, confirmed: z.literal(true).optional() })).mutation(({ ctx, input }) => {
+    updateStatus: releaseApprovalProcedure.input(z.object({ id: z.number().int().positive(), status: publicationStatusSchema, confirmed: z.literal(true).optional() })).mutation(({ ctx, input }) => {
       if (input.status === "ready" && input.confirmed !== true) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "يتطلب تحويل الوجهة إلى «جاهز للربط» تأكيداً صريحاً بعد معاينة الحزمة وعقد التكامل." });
       }
       return db.updatePublicationDestinationStatus(input.id, input.status, ctx.user.id);
+    }),
+  }),
+  security: router({
+    dependencyReviews: securityReviewProcedure.query(() => db.listDependencyReviewRuns()),
+    runDependencyReview: securityReviewProcedure.mutation(async ({ ctx }) => {
+      try {
+        return await runDependencyReview({ trigger: "manual", initiatedBy: ctx.user.id });
+      } catch (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error instanceof Error ? error.message : "تعذرت مراجعة التبعيات." });
+      }
     }),
   }),
   imports: router({
@@ -431,12 +452,32 @@ export const appRouter = router({
     }),
   }),
   users: router({
-    list: adminProcedure.query(() => db.listUsers()),
-    updateRole: adminProcedure.input(z.object({ id: z.number().int().positive(), role: roleSchema })).mutation(({ ctx, input }) => {
-      if (ctx.user.id === input.id && input.role !== "admin") {
+    list: roleManagementProcedure.query(() => db.listUsers()),
+    accessOverview: roleManagementProcedure.query(async ({ ctx }) => ({
+      ...(await db.getAdministrativeAccessOverview()),
+      canManageMembers: Boolean(ENV.ownerOpenId) && ctx.user!.openId === ENV.ownerOpenId,
+    })),
+    updateRole: roleManagementProcedure.input(z.object({ id: z.number().int().positive(), role: roleSchema })).mutation(async ({ ctx, input }) => {
+      if (ctx.user!.id === input.id && input.role !== "admin") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "لا يمكن للمسؤول إلغاء دور admin الخاص به من هذه الصفحة." });
       }
-      return db.updateUserRole(input.id, input.role);
+      const membership = await db.getAdministrativeMemberByUserId(input.id);
+      if (input.role !== "admin" && membership?.status === "active") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "علّق العضوية الإدارية أولاً قبل إزالة دور admin." });
+      }
+      return db.updateUserRole(input.id, input.role, ctx.user!.id);
+    }),
+    setAdministrativeMember: ownerProcedure.input(z.object({
+      userId: z.number().int().positive(),
+      status: z.enum(["active", "suspended"]),
+      canManageRoles: z.boolean(),
+      canApproveReleases: z.boolean(),
+      canReviewSecurity: z.boolean(),
+    })).mutation(async ({ ctx, input }) => {
+      const target = (await db.listUsers()).find((candidate) => candidate.id === input.userId);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "المستخدم المحدد غير موجود." });
+      if (target.role !== "admin") throw new TRPCError({ code: "BAD_REQUEST", message: "يتطلب منح عضوية إدارية أن يحمل المستخدم دور admin أولاً." });
+      return db.upsertAdministrativeMember(input, ctx.user!.id);
     }),
   }),
 });
