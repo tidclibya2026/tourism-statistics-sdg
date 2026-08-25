@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allCitiesFilter, buildCityComparisonSeries, buildCityCoverageComparison, buildPublicationCoverage, buildPublicationSeries, filterPublicationRecords, getCityComparisonRecords, getPublicationCities, searchAndSortPublicationRecords, summarizePublicationValueRange } from "../shared/publicationViewFilters";
+import { addCityComparisonDifferences, allCitiesFilter, buildCityComparisonSeries, buildCityCoverageComparison, buildPublicationCoverage, buildPublicationSeries, calculateCityDifference, filterPublicationRecords, getCityComparisonRecords, getPublicationCities, getPublicationCityRank, searchAndSortPublicationRecords, summarizePublicationValueRange } from "../shared/publicationViewFilters";
 
 const records = [
   { areaCode: "TRIPOLI", areaName: "طرابلس", indicatorCode: "COMPANIES", indicatorName: "الشركات", unit: "عدد", year: 2021, value: 4, source: "س1" },
@@ -28,5 +28,13 @@ describe("فلترة وعرض قياسات واجهات السياحة الرق�
     expect(buildCityComparisonSeries(records, { year: "all", indicatorCode: "COMPANIES", primaryCityCode: "TRIPOLI", comparisonCityCode: "BENGHAZI" })).toEqual([{ year: 2021, primaryValue: 4, comparisonValue: 6 }, { year: 2022, primaryValue: 8 }]);
     expect(buildCityCoverageComparison(records, { year: "2021", primaryCityCode: "TRIPOLI", comparisonCityCode: "BENGHAZI" })).toEqual([{ year: 2021, primaryRecords: 1, comparisonRecords: 1 }]);
     expect(getCityComparisonRecords(records, { year: "2021", indicatorCode: "COMPANIES", primaryCityCode: "TRIPOLI", comparisonCityCode: "BENGHAZI" })).toHaveLength(2);
+  });
+
+  it("يحسب فرق المقارنة ونسبته بأمان ويرتب المدينة في سنة ومؤشر ووحدة موحدة", () => {
+    expect(calculateCityDifference(8, 6)).toEqual({ difference: 2, percentage: 33.33333333333333 });
+    expect(calculateCityDifference(8, 0)).toEqual({ difference: 8, percentage: null });
+    expect(addCityComparisonDifferences([{ year: 2021, primaryValue: 4, comparisonValue: 6 }])).toMatchObject([{ difference: -2, percentage: -33.33333333333333 }]);
+    expect(getPublicationCityRank(records, { year: "2021", indicatorCode: "COMPANIES", cityCode: "TRIPOLI" })).toEqual({ rank: 2, total: 2, year: 2021, value: 4, unit: "عدد" });
+    expect(getPublicationCityRank(records, { year: "all", indicatorCode: "COMPANIES", cityCode: "TRIPOLI" })).toMatchObject({ rank: 1, total: 1, year: 2022, value: 8 });
   });
 });

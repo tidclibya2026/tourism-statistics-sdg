@@ -61,6 +61,27 @@ export function buildCityComparisonSeries(records: PublicationRecord[], input: {
   return Array.from(byYear.values()).sort((left, right) => left.year - right.year);
 }
 
+export function calculateCityDifference(primaryValue?: number, comparisonValue?: number) {
+  if (primaryValue === undefined || comparisonValue === undefined) return null;
+  const difference = primaryValue - comparisonValue;
+  return { difference, percentage: comparisonValue === 0 ? null : (difference / Math.abs(comparisonValue)) * 100 };
+}
+
+export function addCityComparisonDifferences(points: ReturnType<typeof buildCityComparisonSeries>) {
+  return points.map((point) => ({ ...point, ...calculateCityDifference(point.primaryValue, point.comparisonValue) }));
+}
+
+export function getPublicationCityRank(records: PublicationRecord[], input: { year: string; indicatorCode: string; cityCode: string }) {
+  if (!input.cityCode || input.cityCode === allCitiesFilter || !input.indicatorCode) return null;
+  const cityHistory = records.filter((record) => record.areaCode === input.cityCode && record.indicatorCode === input.indicatorCode && (input.year === allYearsFilter || record.year === Number(input.year)));
+  const target = [...cityHistory].sort((left, right) => right.year - left.year)[0];
+  if (!target) return null;
+  const sameScope = records.filter((record) => record.indicatorCode === target.indicatorCode && record.unit === target.unit && record.year === target.year);
+  const cityValues = Array.from(new Map(sameScope.map((record) => [record.areaCode, record])).values());
+  const rank = 1 + cityValues.filter((record) => record.value > target.value).length;
+  return { rank, total: cityValues.length, year: target.year, value: target.value, unit: target.unit };
+}
+
 export function buildCityCoverageComparison(records: PublicationRecord[], input: { year: string; primaryCityCode: string; comparisonCityCode: string }) {
   const primary = buildPublicationCoverage(records, { year: input.year, cityCode: input.primaryCityCode });
   const comparison = buildPublicationCoverage(records, { year: input.year, cityCode: input.comparisonCityCode });
