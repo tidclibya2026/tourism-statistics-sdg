@@ -12,9 +12,19 @@ describe("تصدير واجهات البيانات السياحية", () => {
         exportRecords: [{ areaCode: "CITY-A", areaName: "أ", indicatorCode: "SPATIAL-TOURISM-COMPANIES-COUNT", indicatorName: "الشركات", unit: "عدد", year: 2023, value: 5, source: "مصدر" }],
         gaps: [{ code: "SPATIAL-TOURISM-SITES-COUNT", label: "المواقع السياحية الموثقة", records: 0 }, { code: "SPATIAL-TOURISM-INVESTMENT-LYD", label: "الاستثمار السياحي السنوي", records: 0 }],
       },
-    }, "وقت ثابت");
+    }, "وقت ثابت", {
+      cityName: "طرابلس",
+      comparisonCityName: "بنغازي",
+      rankDirectionLabel: "الأعلى قيمة أولاً",
+      rankHistory: [{ year: 2023, rank: 1, total: 2, value: 5, unit: "عدد" }],
+      latestComparison: { year: 2023, difference: 2, percentage: 40 },
+      threshold: 25,
+      thresholdExceeded: true,
+    });
 
     expect(sheets["القياسات المعتمدة"][0]).toMatchObject({ المدينة: "أ", القيمة: 5, "حالة التحقق": "معتمد للنشر" });
     expect(sheets["فجوات المصادر"]).toEqual(expect.arrayContaining([expect.objectContaining({ الفئة: "المواقع السياحية الموثقة", الحالة: "مصدر سنوي مدني مطلوب" })]));
+    expect(sheets["تغير رتبة المدينة"][0]).toMatchObject({ المدينة: "طرابلس", الرتبة: 1, "اتجاه الترتيب": "الأعلى قيمة أولاً" });
+    expect(sheets["تنبيه فرق المقارنة"][0]).toMatchObject({ "مدينة المقارنة": "بنغازي", "الحد المحدد (%)": 25, الحالة: "تم تجاوز الحد" });
   });
 });

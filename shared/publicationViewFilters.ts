@@ -1,6 +1,7 @@
 import { allYearsFilter } from "./publicationChartInteractions";
 
 export const allCitiesFilter = "all";
+export type PublicationRankDirection = "descending" | "ascending";
 
 export type PublicationRecord = {
   areaCode: string;
@@ -71,26 +72,36 @@ export function addCityComparisonDifferences(points: ReturnType<typeof buildCity
   return points.map((point) => ({ ...point, ...calculateCityDifference(point.primaryValue, point.comparisonValue) }));
 }
 
-export function getPublicationCityRank(records: PublicationRecord[], input: { year: string; indicatorCode: string; cityCode: string }) {
+export function getPublicationCityRank(records: PublicationRecord[], input: { year: string; indicatorCode: string; cityCode: string; direction?: PublicationRankDirection }) {
   if (!input.cityCode || input.cityCode === allCitiesFilter || !input.indicatorCode) return null;
   const cityHistory = records.filter((record) => record.areaCode === input.cityCode && record.indicatorCode === input.indicatorCode && (input.year === allYearsFilter || record.year === Number(input.year)));
   const target = [...cityHistory].sort((left, right) => right.year - left.year)[0];
   if (!target) return null;
   const sameScope = records.filter((record) => record.indicatorCode === target.indicatorCode && record.unit === target.unit && record.year === target.year);
   const cityValues = Array.from(new Map(sameScope.map((record) => [record.areaCode, record])).values());
-  const rank = 1 + cityValues.filter((record) => record.value > target.value).length;
+  const rank = 1 + cityValues.filter((record) => input.direction === "ascending" ? record.value < target.value : record.value > target.value).length;
   return { rank, total: cityValues.length, year: target.year, value: target.value, unit: target.unit };
 }
 
-export function buildPublicationCityRankHistory(records: PublicationRecord[], input: { indicatorCode: string; cityCode: string }) {
+export function buildPublicationCityRankHistory(records: PublicationRecord[], input: { indicatorCode: string; cityCode: string; direction?: PublicationRankDirection }) {
   if (!input.cityCode || input.cityCode === allCitiesFilter || !input.indicatorCode) return [];
   const selectedByYear = new Map<number, PublicationRecord>();
   records.filter((record) => record.areaCode === input.cityCode && record.indicatorCode === input.indicatorCode).forEach((record) => selectedByYear.set(record.year, record));
   return Array.from(selectedByYear.values()).map((target) => {
     const scoped = records.filter((record) => record.indicatorCode === target.indicatorCode && record.unit === target.unit && record.year === target.year);
     const cityValues = Array.from(new Map(scoped.map((record) => [record.areaCode, record])).values());
-    return { year: target.year, rank: 1 + cityValues.filter((record) => record.value > target.value).length, total: cityValues.length, value: target.value, unit: target.unit };
+    return { year: target.year, rank: 1 + cityValues.filter((record) => input.direction === "ascending" ? record.value < target.value : record.value > target.value).length, total: cityValues.length, value: target.value, unit: target.unit };
   }).sort((left, right) => left.year - right.year);
+}
+
+export function buildPublicationTopCitiesByYear(records: PublicationRecord[], input: { indicatorCode: string; unit: string; year: string; direction: PublicationRankDirection; limit?: number }) {
+  if (!input.indicatorCode || !input.unit) return [];
+  const byYear = new Map<number, PublicationRecord[]>();
+  records.filter((record) => record.indicatorCode === input.indicatorCode && record.unit === input.unit && (input.year === allYearsFilter || record.year === Number(input.year))).forEach((record) => byYear.set(record.year, [...(byYear.get(record.year) ?? []), record]));
+  return Array.from(byYear.entries()).sort(([left], [right]) => right - left).map(([year, yearRecords]) => {
+    const cities = Array.from(new Map(yearRecords.map((record) => [record.areaCode, record])).values()).sort((left, right) => input.direction === "ascending" ? left.value - right.value : right.value - left.value);
+    return { year, cities: cities.slice(0, input.limit ?? 5).map((record, index) => ({ rank: 1 + cities.slice(0, index).filter((candidate) => candidate.value !== record.value).length, areaCode: record.areaCode, areaName: record.areaName, value: record.value, unit: record.unit })) };
+  });
 }
 
 export function assessComparisonThreshold(percentage: number | null | undefined, threshold: number | null) {

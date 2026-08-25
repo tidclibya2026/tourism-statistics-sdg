@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addCityComparisonDifferences, allCitiesFilter, assessComparisonThreshold, buildCityComparisonSeries, buildCityCoverageComparison, buildPublicationCityRankHistory, buildPublicationCoverage, buildPublicationSeries, calculateCityDifference, filterPublicationRecords, getCityComparisonRecords, getPublicationCities, getPublicationCityRank, searchAndSortPublicationRecords, summarizePublicationValueRange } from "../shared/publicationViewFilters";
+import { addCityComparisonDifferences, allCitiesFilter, assessComparisonThreshold, buildCityComparisonSeries, buildCityCoverageComparison, buildPublicationCityRankHistory, buildPublicationCoverage, buildPublicationSeries, buildPublicationTopCitiesByYear, calculateCityDifference, filterPublicationRecords, getCityComparisonRecords, getPublicationCities, getPublicationCityRank, searchAndSortPublicationRecords, summarizePublicationValueRange } from "../shared/publicationViewFilters";
 
 const records = [
   { areaCode: "TRIPOLI", areaName: "طرابلس", indicatorCode: "COMPANIES", indicatorName: "الشركات", unit: "عدد", year: 2021, value: 4, source: "س1" },
@@ -46,5 +46,11 @@ describe("فلترة وعرض قياسات واجهات السياحة الرق�
     expect(assessComparisonThreshold(-33.5, 30)).toEqual({ available: true, exceeded: true, magnitude: 33.5 });
     expect(assessComparisonThreshold(20, 30)).toEqual({ available: true, exceeded: false, magnitude: 20 });
     expect(assessComparisonThreshold(null, 30)).toEqual({ available: false, exceeded: false, magnitude: null });
+  });
+
+  it("يعكس اتجاه الترتيب ويعرض المدن الخمس الأفضل لكل سنة دون خلط الوحدة", () => {
+    expect(getPublicationCityRank(records, { year: "2021", indicatorCode: "COMPANIES", cityCode: "TRIPOLI", direction: "ascending" })).toMatchObject({ rank: 1, total: 2 });
+    expect(buildPublicationTopCitiesByYear(records, { indicatorCode: "COMPANIES", unit: "عدد", year: "2021", direction: "descending" })).toEqual([{ year: 2021, cities: [{ rank: 1, areaCode: "BENGHAZI", areaName: "بنغازي", value: 6, unit: "عدد" }, { rank: 2, areaCode: "TRIPOLI", areaName: "طرابلس", value: 4, unit: "عدد" }] }]);
+    expect(buildPublicationTopCitiesByYear(records, { indicatorCode: "COMPANIES", unit: "عدد", year: "2021", direction: "ascending" })[0]?.cities[0]).toMatchObject({ areaCode: "TRIPOLI", rank: 1 });
   });
 });
