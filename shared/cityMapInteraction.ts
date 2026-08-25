@@ -16,6 +16,7 @@ export type CityComparisonPoint = {
 export const cityMapQueryDefaults = {
   staleTime: 5 * 60 * 1000,
   gcTime: 15 * 60 * 1000,
+  refetchInterval: 2 * 60 * 1000,
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
 } as const;

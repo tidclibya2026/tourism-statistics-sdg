@@ -6,6 +6,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { validateImportedObservations } from "./validation";
+import { validateImportedCityStatistics } from "../shared/cityStatisticsImport";
 import { calculateAnnualForecast } from "./forecast";
 import { validateUnitValues } from "../shared/unitValidation";
 import { invokeLLM } from "./_core/llm";
@@ -335,6 +336,57 @@ export const appRouter = router({
         });
       }
       return { jobId, acceptedRows: validation.accepted.length, rejectedRows: input.rows.length - validation.accepted.length, issues: validation.issues };
+    }),
+    processCityTemplate: analystProcedure.input(z.object({
+      fileName: z.string().trim().min(1).max(255),
+      rows: z.array(z.record(z.string(), z.unknown())).min(1).max(5000),
+    })).mutation(async ({ ctx, input }) => {
+      const cityCodes = Array.from(new Set(input.rows.map((row) => String(row["رمز المدينة"] ?? "").trim().toUpperCase()).filter(Boolean)));
+      const indicatorCodes = Array.from(new Set(input.rows.map((row) => String(row["رمز المؤشر في المنصة"] ?? "").trim().toUpperCase()).filter(Boolean)));
+      const [knownCities, knownIndicators] = await Promise.all([
+        db.getSpatialAreasByCodes(cityCodes),
+        db.getIndicatorsByCodes(indicatorCodes),
+      ]);
+      const validation = validateImportedCityStatistics(input.rows, knownCities, knownIndicators);
+      const cityByCode = new Map(knownCities.map((city) => [city.code, city]));
+      const indicatorByCode = new Map(knownIndicators.map((indicator) => [indicator.code, indicator]));
+      const issues = [...validation.issues];
+      const writable = [] as typeof validation.accepted;
+      for (const row of validation.accepted) {
+        const city = cityByCode.get(row.cityCode)!;
+        const indicator = indicatorByCode.get(row.indicatorCode)!;
+        const existing = await db.getSpatialObservationForPeriod({ spatialAreaId: city.id, indicatorId: indicator.id, year: row.year, period: "annual", quarter: "annual" });
+        if (existing && (existing.verificationStatus !== "draft" || existing.enteredBy !== ctx.user.id)) {
+          issues.push({ rowNumber: input.rows.indexOf(input.rows.find((candidate) => String(candidate["رمز المدينة"] ?? "").trim().toUpperCase() === row.cityCode && String(candidate["رمز المؤشر في المنصة"] ?? "").trim().toUpperCase() === row.indicatorCode && Number(candidate["السنة المقدمة"]) === row.year)!) + 2, field: "السنة المقدمة", message: "يوجد قياس قائم لهذه المدينة والمؤشر والسنة ولا يمكن استبداله بالاستيراد لأنه ليس مسودة تخص مُدخل الملف.", severity: "error" });
+          continue;
+        }
+        writable.push(row);
+      }
+      const jobId = await db.createImportJob({
+        fileName: input.fileName,
+        fileType: "Excel",
+        status: issues.length ? "completed_with_errors" : "completed",
+        totalRows: input.rows.length - validation.ignoredRows,
+        acceptedRows: writable.length,
+        rejectedRows: input.rows.length - validation.ignoredRows - writable.length,
+        submittedBy: ctx.user.id,
+      });
+      await db.createImportIssues(jobId, issues);
+      for (const row of writable) {
+        const city = cityByCode.get(row.cityCode)!;
+        const indicator = indicatorByCode.get(row.indicatorCode)!;
+        const source = row.sourceTitle.slice(0, 500);
+        const notes = [
+          `استيراد من نموذج طلب بيانات المدن السياحية.`,
+          `جدول/صفحة: ${row.tableOrPage}.`,
+          `مرجع/رابط: ${row.reference}.`,
+          row.publicationDate ? `تاريخ النشر: ${row.publicationDate}.` : null,
+          row.provider ? `الجهة المزودة: ${row.provider}.` : null,
+          row.notes ? `ملاحظات: ${row.notes}` : null,
+        ].filter(Boolean).join(" ");
+        await db.upsertSpatialObservation({ spatialAreaId: city.id, indicatorId: indicator.id, year: row.year, period: "annual", quarter: "annual", value: String(row.value), source, notes, enteredBy: ctx.user.id, verificationStatus: "draft" });
+      }
+      return { jobId, acceptedRows: writable.length, rejectedRows: input.rows.length - validation.ignoredRows - writable.length, ignoredRows: validation.ignoredRows, issues };
     }),
   }),
   users: router({

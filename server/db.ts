@@ -398,6 +398,12 @@ export async function getSpatialAreaById(id: number) {
   return result[0];
 }
 
+export async function getSpatialAreasByCodes(codes: string[]) {
+  const db = await getDb();
+  if (!db || codes.length === 0) return [];
+  return db.select().from(spatialAreas).where(inArray(spatialAreas.code, codes));
+}
+
 export async function updateSpatialArea(id: number, values: Partial<InsertSpatialArea>) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
