@@ -28,6 +28,12 @@ export type PublicationTopCitiesExport = {
   groups: { year: number; cities: { rank: number; areaName: string; value: number; unit: string }[] }[];
 };
 
+export type PublicationTopCitiesComparisonExport = PublicationTopCitiesExport & {
+  rows: { areaName: string; values: Record<number, { rank: number; value: number; unit: string }> }[];
+  movements: { fromYear: number; toYear: number; entered: string[]; exited: string[] }[];
+  notes: string;
+};
+
 type CellValue = string | number;
 
 function appendRows(sheet: ExcelJS.Worksheet, rows: Record<string, CellValue>[]) {
@@ -55,6 +61,26 @@ export function toTopCitiesExportRows(input: PublicationTopCitiesExport) {
   return rows.length ? rows : [{ ملاحظة: "لا توجد قائمة مدن مطابقة للتصدير ضمن الفلاتر الحالية." }];
 }
 
+export function toTopCitiesComparisonSheets(input: PublicationTopCitiesComparisonExport) {
+  const years = input.groups.map((group) => group.year);
+  return {
+    "مقارنة ثلاث سنوات": input.rows.length ? input.rows.map((row) => ({
+      المدينة: row.areaName,
+      ...Object.fromEntries(years.flatMap((year) => {
+        const value = row.values[year];
+        return [[`${year} — الرتبة`, value?.rank ?? "—"], [`${year} — القيمة`, value?.value ?? "—"], [`${year} — الوحدة`, value?.unit ?? "—"]];
+      })),
+      المؤشر: input.indicatorName,
+      "اتجاه الترتيب": input.directionLabel,
+    })) : [{ ملاحظة: "لا توجد مدن مطابقة لمقارنة السنوات المختارة." }],
+    "حركة قائمة الخمس": input.movements.length ? input.movements.flatMap((movement) => [
+      { من: movement.fromYear, إلى: movement.toYear, الحركة: "دخلت قائمة الخمس", المدن: movement.entered.join("، ") || "لا توجد" },
+      { من: movement.fromYear, إلى: movement.toYear, الحركة: "خرجت من قائمة الخمس", المدن: movement.exited.join("، ") || "لا توجد" },
+    ]) : [{ ملاحظة: "لا تتوفر حركة قائمة لعرضها." }],
+    "ملاحظات تفسيرية": [{ النوع: "ملاحظة مستخدم", الملاحظة: input.notes.trim() || "لم تُضف ملاحظات تفسيرية. لا تغير هذه الورقة القياسات المعتمدة." }],
+  };
+}
+
 export async function downloadTopCitiesWorkbook(input: PublicationTopCitiesExport) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "المرصد الوطني للإحصاءات والمؤشرات السياحية";
@@ -65,6 +91,20 @@ export async function downloadTopCitiesWorkbook(input: PublicationTopCitiesExpor
   const link = document.createElement("a");
   link.href = url;
   link.download = `أفضل-خمس-مدن-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadTopCitiesComparisonWorkbook(input: PublicationTopCitiesComparisonExport) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "المرصد الوطني للإحصاءات والمؤشرات السياحية";
+  Object.entries(toTopCitiesComparisonSheets(input)).forEach(([name, rows]) => appendRows(workbook.addWorksheet(name), rows));
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `مقارنة-أفضل-خمس-مدن-${new Date().toISOString().slice(0, 10)}.xlsx`;
   link.click();
   URL.revokeObjectURL(url);
 }

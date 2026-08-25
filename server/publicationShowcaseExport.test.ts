@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toPublicationExportSheets, toTopCitiesExportRows } from "../client/src/lib/publicationShowcaseExport";
+import { toPublicationExportSheets, toTopCitiesComparisonSheets, toTopCitiesExportRows } from "../client/src/lib/publicationShowcaseExport";
 
 describe("تصدير واجهات البيانات السياحية", () => {
   it("يضم القياسات المعتمدة وفجوات المواقع والاستثمار في أوراق منفصلة", () => {
@@ -30,5 +30,12 @@ describe("تصدير واجهات البيانات السياحية", () => {
 
   it("يهيئ ملف Excel مستقل لقائمة أفضل خمس مدن فقط", () => {
     expect(toTopCitiesExportRows({ indicatorName: "الشركات", unit: "عدد", directionLabel: "الأعلى قيمة أولاً", groups: [{ year: 2021, cities: [{ rank: 1, areaName: "طرابلس", value: 10, unit: "عدد" }] }] })).toEqual([{ السنة: 2021, الرتبة: 1, المدينة: "طرابلس", القيمة: 10, الوحدة: "عدد", المؤشر: "الشركات", "اتجاه الترتيب": "الأعلى قيمة أولاً" }]);
+  });
+
+  it("يضم جدول السنوات وحركة القائمة والملاحظة التفسيرية في تصدير المقارنة", () => {
+    const sheets = toTopCitiesComparisonSheets({ indicatorName: "الشركات", unit: "عدد", directionLabel: "الأعلى قيمة أولاً", groups: [{ year: 2021, cities: [] }, { year: 2020, cities: [] }, { year: 2019, cities: [] }], rows: [{ areaName: "طرابلس", values: { 2021: { rank: 1, value: 10, unit: "عدد" } } }], movements: [{ fromYear: 2020, toYear: 2021, entered: ["طرابلس"], exited: ["بنغازي"] }], notes: "ملاحظة مراجعة" });
+    expect(sheets["مقارنة ثلاث سنوات"][0]).toMatchObject({ المدينة: "طرابلس", "2021 — الرتبة": 1, "2020 — الرتبة": "—" });
+    expect(sheets["حركة قائمة الخمس"]).toHaveLength(2);
+    expect(sheets["ملاحظات تفسيرية"][0]).toMatchObject({ الملاحظة: "ملاحظة مراجعة" });
   });
 });
