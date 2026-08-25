@@ -43,3 +43,12 @@ export async function exportDashboardPdf(element: HTMLElement, fileName: string,
   });
   pdf.save(fileName);
 }
+
+export async function exportElementPng(element: HTMLElement, fileName: string, capture = (target: HTMLElement) => html2canvas(target, { scale: 3, backgroundColor: "#f8fbfa", useCORS: true })) {
+  const canvas = await capture(element);
+  const url = canvas.toDataURL("image/png");
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+}
