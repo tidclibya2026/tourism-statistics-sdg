@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addCityComparisonDifferences, allCitiesFilter, assessComparisonThreshold, buildCityComparisonSeries, buildCityCoverageComparison, buildPublicationCityRankHistory, buildPublicationCoverage, buildPublicationSeries, buildPublicationTopCitiesByYear, calculateCityDifference, filterPublicationRecords, getCityComparisonRecords, getPublicationCities, getPublicationCityRank, getPublicationRankingMethod, searchAndSortPublicationRecords, summarizePublicationValueRange } from "../shared/publicationViewFilters";
+import { addCityComparisonDifferences, allCitiesFilter, assessComparisonThreshold, buildCityComparisonSeries, buildCityCoverageComparison, buildPublicationCityRankHistory, buildPublicationCoverage, buildPublicationSeries, buildPublicationTopCitiesComparisonTable, buildPublicationTopCitiesByYear, calculateCityDifference, explainPublicationRankChange, filterPublicationRecords, getCityComparisonRecords, getPublicationCities, getPublicationCityRank, getPublicationRankingMethod, getPublicationTopFiveMovement, searchAndSortPublicationRecords, summarizePublicationValueRange } from "../shared/publicationViewFilters";
 
 const records = [
   { areaCode: "TRIPOLI", areaName: "طرابلس", indicatorCode: "COMPANIES", indicatorName: "الشركات", unit: "عدد", year: 2021, value: 4, source: "س1" },
@@ -57,5 +57,13 @@ describe("فلترة وعرض قياسات واجهات السياحة الرق�
   it("يحدد منهجية الاتجاه الافتراضي وفق طبيعة المؤشر مع إتاحة التجاوز اليدوي في الواجهة", () => {
     expect(getPublicationRankingMethod({ code: "SPATIAL-TOURISM-COMPANIES-COUNT", name: "الشركات السياحية", unit: "عدد" })).toMatchObject({ direction: "descending", label: "الأعلى قيمة أولاً" });
     expect(getPublicationRankingMethod({ code: "TOURISM-WASTE", name: "النفايات السياحية", unit: "طن" })).toMatchObject({ direction: "ascending", label: "الأدنى قيمة أولاً" });
+  });
+
+  it("يفسر تغير الرتبة وصفياً ويحدد المدن الداخلة والخارجة ويجمع مقارنة السنوات", () => {
+    expect(explainPublicationRankChange([{ year: 2020, rank: 3, total: 10, value: 4, unit: "عدد" }, { year: 2021, rank: 1, total: 12, value: 8, unit: "عدد" }], "descending")).toMatchObject({ status: "improved", rankShift: 2, valueShift: 4 });
+    const first = { year: 2020, cities: [{ rank: 1, areaCode: "A", areaName: "أ", value: 9, unit: "عدد" }, { rank: 2, areaCode: "B", areaName: "ب", value: 8, unit: "عدد" }] };
+    const second = { year: 2021, cities: [{ rank: 1, areaCode: "B", areaName: "ب", value: 10, unit: "عدد" }, { rank: 2, areaCode: "C", areaName: "ج", value: 7, unit: "عدد" }] };
+    expect(getPublicationTopFiveMovement(first, second)).toMatchObject({ entered: [expect.objectContaining({ areaCode: "C" })], exited: [expect.objectContaining({ areaCode: "A" })], retained: ["B"] });
+    expect(buildPublicationTopCitiesComparisonTable([first, second])).toEqual(expect.arrayContaining([expect.objectContaining({ areaCode: "B", values: { 2020: { rank: 2, value: 8, unit: "عدد" }, 2021: { rank: 1, value: 10, unit: "عدد" } } })]));
   });
 });

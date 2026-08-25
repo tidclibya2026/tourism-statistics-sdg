@@ -112,6 +112,45 @@ export function buildPublicationTopCitiesByYear(records: PublicationRecord[], in
   });
 }
 
+export type PublicationTopCityGroup = { year: number; cities: { rank: number; areaCode: string; areaName: string; value: number; unit: string }[] };
+
+export function explainPublicationRankChange(history: { year: number; rank: number; total: number; value: number; unit: string }[], direction: PublicationRankDirection) {
+  if (history.length < 2) return null;
+  const previous = history[history.length - 2];
+  const current = history[history.length - 1];
+  const rankShift = previous.rank - current.rank;
+  const valueShift = current.value - previous.value;
+  const position = rankShift > 0 ? "تحسنت" : rankShift < 0 ? "تراجعت" : "استقرت";
+  const valueChange = valueShift > 0 ? "ارتفعت" : valueShift < 0 ? "انخفضت" : "لم تتغير";
+  return {
+    status: rankShift > 0 ? "improved" as const : rankShift < 0 ? "declined" as const : "stable" as const,
+    rankShift,
+    valueShift,
+    summary: `${position} الرتبة من ${previous.rank} إلى ${current.rank} بين ${previous.year} و${current.year}. ${valueChange} قيمة المدينة من ${previous.value} إلى ${current.value} ${current.unit}، وتغيرت مجموعة المقارنة من ${previous.total} إلى ${current.total} مدينة. هذا تفسير وصفي للقياسات المعتمدة واتجاه ${direction === "ascending" ? "الأدنى قيمة أولاً" : "الأعلى قيمة أولاً"}، وليس إثباتاً لسبب تشغيلي.`
+  };
+}
+
+export function getPublicationTopFiveMovement(first?: PublicationTopCityGroup, second?: PublicationTopCityGroup) {
+  if (!first || !second) return { entered: [], exited: [], retained: [] as string[] };
+  const firstCodes = new Set(first.cities.map((city) => city.areaCode));
+  const secondCodes = new Set(second.cities.map((city) => city.areaCode));
+  return {
+    entered: second.cities.filter((city) => !firstCodes.has(city.areaCode)),
+    exited: first.cities.filter((city) => !secondCodes.has(city.areaCode)),
+    retained: second.cities.filter((city) => firstCodes.has(city.areaCode)).map((city) => city.areaCode),
+  };
+}
+
+export function buildPublicationTopCitiesComparisonTable(groups: PublicationTopCityGroup[]) {
+  const cities = new Map<string, { areaCode: string; areaName: string; values: Record<number, { rank: number; value: number; unit: string }> }>();
+  groups.forEach((group) => group.cities.forEach((city) => {
+    const current = cities.get(city.areaCode) ?? { areaCode: city.areaCode, areaName: city.areaName, values: {} };
+    current.values[group.year] = { rank: city.rank, value: city.value, unit: city.unit };
+    cities.set(city.areaCode, current);
+  }));
+  return Array.from(cities.values()).sort((left, right) => left.areaName.localeCompare(right.areaName, "ar"));
+}
+
 export function assessComparisonThreshold(percentage: number | null | undefined, threshold: number | null) {
   if (percentage === undefined || percentage === null || threshold === null) return { available: false, exceeded: false, magnitude: null };
   const magnitude = Math.abs(percentage);
