@@ -4,11 +4,8 @@ import { Input } from "@/components/ui/input";
 import QueryStateError from "@/components/QueryStateError";
 import { arabicNumber, asNumber, formatYear, periodLabel } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
-import { PDF_CAPTURE_ROOT_ATTRIBUTE, preparePdfCaptureDocument } from "@/lib/pdfCapture";
-import { getPdfCaptureOptions } from "@/lib/dashboardPdf";
+import { openPrintablePdf } from "@/lib/dashboardPdf";
 import { toExcelReportRows } from "@/lib/reportExport";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import { FileSpreadsheet, FileText, Printer } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -49,27 +46,7 @@ export default function Reports() {
       return;
     }
     try {
-      const canvas = await html2canvas(reportRef.current, {
-        ...getPdfCaptureOptions("#ffffff"),
-        scale: 2,
-        onclone: preparePdfCaptureDocument,
-      });
-      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const imageHeight = canvas.height * pageWidth / canvas.width;
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      let position = 0;
-      let remaining = imageHeight;
-      const image = canvas.toDataURL("image/png");
-      pdf.addImage(image, "PNG", 0, position, pageWidth, imageHeight);
-      remaining -= pageHeight;
-      while (remaining > 0) {
-        position = remaining - imageHeight;
-        pdf.addPage();
-        pdf.addImage(image, "PNG", 0, position, pageWidth, imageHeight);
-        remaining -= pageHeight;
-      }
-      pdf.save(`تقرير-المؤشرات-${yearFrom}-${yearTo}.pdf`);
+      openPrintablePdf(reportRef.current, `تقرير-المؤشرات-${yearFrom}-${yearTo}.pdf`);
     } catch (error) {
       console.error("Report PDF export failed", error);
       toast.error("تعذر إنشاء ملف PDF في الوقت الحالي.");
@@ -96,7 +73,7 @@ export default function Reports() {
         </div>
       </section>
 
-      <div ref={reportRef} {...{ [PDF_CAPTURE_ROOT_ATTRIBUTE]: "" }} className="table-shell bg-white">
+      <div ref={reportRef} className="table-shell bg-white">
         <div className="border-b border-[#e8efec] p-5">
           <div className="flex items-start justify-between">
             <div>

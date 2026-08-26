@@ -34,7 +34,50 @@ const defaultDependencies: DashboardPdfDependencies = {
   createPdf: () => new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" }),
 };
 
+export function getPrintablePdfTitle(fileName: string) {
+  return fileName.replace(/\.pdf$/i, "");
+}
+
+export function openPrintablePdf(element: HTMLElement, fileName: string) {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) throw new Error("تعذر فتح نافذة حفظ PDF. تحقق من السماح بالنوافذ المنبثقة لهذا الرابط الداخلي.");
+
+  printWindow.opener = null;
+  printWindow.document.title = getPrintablePdfTitle(fileName);
+  document.querySelectorAll('link[rel="stylesheet"], style').forEach((style) => printWindow.document.head.append(style.cloneNode(true)));
+
+  const printStyle = printWindow.document.createElement("style");
+  printStyle.textContent = `
+    @page { size: A4 landscape; margin: 10mm; }
+    html, body { background: #fff !important; color: #173f3d !important; direction: rtl; }
+    body { margin: 0; padding: 0; }
+    .pdf-print-root { overflow: visible !important; box-shadow: none !important; }
+    .pdf-print-root * { animation: none !important; transition: none !important; }
+    .pdf-print-root .overflow-x-auto, .pdf-print-root .overflow-hidden { overflow: visible !important; }
+    .pdf-print-root table { width: 100% !important; min-width: 0 !important; font-size: 9pt; }
+    .pdf-print-root tr, .pdf-print-root .recharts-wrapper { break-inside: avoid; page-break-inside: avoid; }
+    @media print { .pdf-print-root { width: 100% !important; } }
+  `;
+  printWindow.document.head.append(printStyle);
+
+  const root = printWindow.document.createElement("main");
+  root.className = "pdf-print-root";
+  root.append(element.cloneNode(true));
+  printWindow.document.body.append(root);
+
+  const print = () => {
+    printWindow.focus();
+    printWindow.print();
+  };
+  if (printWindow.document.fonts?.ready) printWindow.document.fonts.ready.then(() => window.setTimeout(print, 150));
+  else window.setTimeout(print, 150);
+}
+
 export async function exportDashboardPdf(element: HTMLElement, fileName: string, dependencies: DashboardPdfDependencies = defaultDependencies) {
+  if (dependencies === defaultDependencies) {
+    openPrintablePdf(element, fileName);
+    return;
+  }
   const canvas = await dependencies.capture(element);
   const pdf = dependencies.createPdf();
   const pageWidth = pdf.internal.pageSize.getWidth();
