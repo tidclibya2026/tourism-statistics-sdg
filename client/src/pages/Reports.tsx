@@ -7,7 +7,7 @@ import { arabicNumber, asNumber, formatYear, periodLabel } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
 import { openPrintablePdf } from "@/lib/dashboardPdf";
 import { toExcelReportRows } from "@/lib/reportExport";
-import { BarChart3, FileSpreadsheet, FileText, LineChart as LineChartIcon, LoaderCircle, MapPin, Printer } from "lucide-react";
+import { BarChart3, FileSpreadsheet, FileText, LineChart as LineChartIcon, LoaderCircle, MapPin, Printer, Sparkles } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { readUserDisplayPreferences, saveUserDisplayPreferences, type PreferredChart } from "@/lib/userPreferences";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -31,6 +31,7 @@ export default function Reports() {
   });
   const nationalData = query.data ?? [];
   const reportLoading = query.isLoading || spatialQuery.isLoading;
+  const narrative = trpc.dashboard.narrative.useMutation();
   const areaOptions = useMemo(() => [...(spatialQuery.data?.regions ?? []), ...(spatialQuery.data?.cities ?? [])], [spatialQuery.data]);
   const data = useMemo(() => {
     if (areaId === "all") return nationalData;
@@ -52,7 +53,15 @@ export default function Reports() {
     return years.map((year) => ({ year, measurements: data.filter((item) => item.observation.year === year && item.observation.period === "annual").length }));
   }, [data]);
   const selectedAreaName = areaOptions.find((area) => String(area.id) === areaId)?.name;
+  const areaTrend = useMemo(() => {
+    const observations = spatialQuery.data?.observations ?? [];
+    const latestYear = observations.reduce((latest, item) => Math.max(latest, item.year), 0);
+    const counts = new Map<string, number>();
+    observations.filter((item) => item.year === latestYear).forEach((item) => counts.set(item.areaName, (counts.get(item.areaName) ?? 0) + 1));
+    return Array.from(counts, ([areaName, measurements]) => ({ areaName, measurements })).sort((a, b) => b.measurements - a.measurements || a.areaName.localeCompare(b.areaName, "ar")).slice(0, 12);
+  }, [spatialQuery.data]);
   function changeChartMode(next: PreferredChart) { setChartMode(next); const current = readUserDisplayPreferences(); saveUserDisplayPreferences({ ...current, chartType: next }); }
+  function generateNarrative() { narrative.mutate({ year: Number(yearTo) }); }
 
   function exportExcel() {
     if (!data.length) {
@@ -127,10 +136,15 @@ export default function Reports() {
           <Button className="bg-[#0f5c58] hover:bg-[#0a4845]" onClick={exportPdf} disabled={Boolean(exporting) || reportLoading || !data.length} aria-busy={exporting === "pdf"}>
             {exporting === "pdf" ? <LoaderCircle className="ml-1.5 h-4 w-4 animate-spin" /> : <FileText className="ml-1.5 h-4 w-4" />}تصدير PDF
           </Button>
+          <Button variant="outline" onClick={generateNarrative} disabled={reportLoading || narrative.isPending || !data.length} aria-busy={narrative.isPending}>
+            {narrative.isPending ? <LoaderCircle className="ml-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="ml-1.5 h-4 w-4 text-amber-600" />}تحليل ذكي
+          </Button>
         </div>
       </section>
 
-      <div ref={reportRef} className="table-shell bg-white">
+      {narrative.data?.text && <section className="section-card border-amber-200 bg-amber-50/60 p-5" aria-live="polite"><div className="flex items-start gap-3"><Sparkles className="mt-1 h-5 w-5 shrink-0 text-amber-700" /><div><h2 className="font-bold text-[#173f3d]">أهم الاستنتاجات قبل التصدير</h2><div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">{narrative.data.text}</div><p className="mt-3 text-xs text-slate-500">هذا الملخص مساعد تحليلي مبني على القياسات المعتمدة ولا يستبدل مراجعة قسم الإحصاء.</p></div></div></section>}
+
+      <div ref={reportRef} className="table-shell bg-white report-surface">
         <div className="border-b border-[#e8efec] p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -148,6 +162,7 @@ export default function Reports() {
         </div>
 
         {reportLoading && <div className="rounded-xl border border-dashed border-[#dce8e4] p-5 text-center text-sm text-slate-500" aria-live="polite">جارٍ تحميل بيانات الرسم…</div>}
+        {!reportLoading && areaTrend.length > 0 && areaId === "all" && <div className="border-b border-[#e8efec] p-5" dir="ltr"><p className="mb-3 text-right text-sm font-bold text-[#173f3d]" dir="rtl">تفاصيل المناطق — انقر على العمود للتصفية</p><div className="chart-stage h-56" role="img" aria-label="رسم تفاعلي للقياسات المعتمدة حسب المنطقة"><ResponsiveContainer width="100%" height="100%"><BarChart data={areaTrend} margin={{ top: 5, right: 16, left: -22, bottom: 0 }} onClick={(event) => { const name = event?.activePayload?.[0]?.payload?.areaName; const area = areaOptions.find((candidate) => candidate.name === name); if (area) setAreaId(String(area.id)); }}><CartesianGrid strokeDasharray="3 3" stroke="var(--border)" /><XAxis dataKey="areaName" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} interval={0} angle={-18} textAnchor="end" height={50} /><YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} /><Tooltip formatter={(value) => [arabicNumber.format(Number(value)), "قياسات"]} /><Bar dataKey="measurements" name="القياسات المعتمدة" fill="var(--chart-2)" radius={[7, 7, 0, 0]} cursor="pointer" /></BarChart></ResponsiveContainer></div></div>}
         {!reportLoading && annualTrend.length > 0 && (
           <div className="border-b border-[#e8efec] p-5" dir="ltr">
             <p className="mb-3 text-right text-sm font-bold text-[#173f3d]" dir="rtl">الاتجاه السنوي للقياسات المعتمدة</p>

@@ -13,7 +13,7 @@ const approvedRows = [
 ];
 
 vi.mock("@/lib/trpc", () => ({
-  trpc: { observations: { list: { useQuery: () => ({ data: approvedRows, isLoading: false, isError: false, refetch: vi.fn() }) } }, spatial: { overview: { useQuery: () => ({ data: spatialReportData, isLoading: false, isError: false, refetch: vi.fn() }) } } },
+  trpc: { observations: { list: { useQuery: () => ({ data: approvedRows, isLoading: false, isError: false, refetch: vi.fn() }) } }, spatial: { overview: { useQuery: () => ({ data: spatialReportData, isLoading: false, isError: false, refetch: vi.fn() }) } }, dashboard: { narrative: { useMutation: () => ({ data: null, isPending: false, mutate: vi.fn() }) } } },
 }));
 vi.mock("@/lib/dashboardPdf", () => ({ openPrintablePdf: exportPdf }));
 vi.mock("@/lib/reportExport", () => ({ toExcelReportRows: (rows: unknown[]) => rows.map((_, index) => ({ المؤشر: `صف ${index + 1}` })) }));
@@ -30,7 +30,9 @@ describe("reports export and chart UI", () => {
     render(<Reports />);
     expect((screen.getByRole("button", { name: /تصدير Excel/ }) as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByRole("button", { name: /تصدير PDF/ }) as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.getByRole("img", { name: /رسم تفاعلي/ })).toBeTruthy();
+    expect(screen.getAllByRole("img", { name: /رسم تفاعلي/ }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/تفاصيل المناطق/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /تحليل ذكي/ }));
     expect(screen.getByRole("button", { name: /أعمدة/ }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: /خطي/ }));
     expect(screen.getByRole("button", { name: /خطي/ }).getAttribute("aria-pressed")).toBe("true");
