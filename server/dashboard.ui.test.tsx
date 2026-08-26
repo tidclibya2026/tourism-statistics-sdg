@@ -53,4 +53,14 @@ describe("dashboard export and AI summary UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "توليد التقرير النصي" }));
     expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ year: undefined, sdgReference: "SDG 8" }));
   });
+
+  it("يعرض مؤشرات الملخص والنطاق المعتمد ويدعم تبديل محور العرض", () => {
+    render(<Home />);
+    expect(screen.getByText("القياسات المعتمدة")).toBeTruthy();
+    const axisFilter = screen.getAllByRole("combobox")[1];
+    fireEvent.pointerDown(axisFilter, { button: 0, pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("option", { name: "اقتصادي" }));
+    expect(screen.getByText("نسبة تحقيق المستهدفات")).toBeTruthy();
+    expect(screen.getByText("الوافدون")).toBeTruthy();
+  });
 });
