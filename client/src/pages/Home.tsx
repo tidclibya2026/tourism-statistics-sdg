@@ -7,7 +7,7 @@ import { downloadDashboardWorkbook } from "@/lib/dashboardDownload";
 import { exportDashboardPdf } from "@/lib/dashboardPdf";
 import { Streamdown } from "streamdown";
 import html2canvas from "html2canvas";
-import { Activity, BadgeCheck, CalendarDays, ChartNoAxesCombined, Database, FileSpreadsheet, FileText, Layers3, LoaderCircle, MapPinned, Sparkles, Target, TrendingUp, Trophy } from "lucide-react";
+import { Activity, BadgeCheck, CalendarDays, ChartNoAxesCombined, Database, FileSpreadsheet, FileText, Layers3, LoaderCircle, MapPin, MapPinned, Sparkles, Target, TrendingUp, Trophy } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,8 @@ const axisColors = ["#c58a3f", "#25829a", "#20806c"];
 
 function MetricCard({ label, value, icon: Icon, hint, tone }: { label: string; value: string | number; icon: typeof Layers3; hint: string; tone: string }) {
   return (
-    <Card className="metric-card overflow-hidden border-0">
+    <Card className="metric-card group relative overflow-visible border-0" title={`${label}: ${hint}`}>
+      <div className="pointer-events-none absolute right-4 top-full z-20 mt-2 hidden w-64 rounded-xl border border-[#cfe2db] bg-white p-3 text-xs leading-6 text-slate-600 shadow-xl group-hover:block group-focus-within:block">{hint}</div>
       <CardContent className="flex items-start justify-between p-5">
         <div>
           <p className="text-xs font-semibold text-slate-500">{label}</p>
@@ -33,6 +34,7 @@ function MetricCard({ label, value, icon: Icon, hint, tone }: { label: string; v
 
 export default function Home() {
   const [year, setYear] = useState("all");
+  const [areaId, setAreaId] = useState("all");
   const [axis, setAxis] = useState("all");
   const [framework, setFramework] = useState("all");
   const [sdgReference, setSdgReference] = useState("all");
@@ -44,7 +46,8 @@ export default function Home() {
     sdgReference: sdgReference === "all" ? undefined : sdgReference as "SDG 8" | "SDG 11" | "SDG 12" | "SDG 14" | "SDG 17",
   }), [year, axis, framework, sdgReference]);
   const dashboard = trpc.dashboard.summary.useQuery(dashboardInput);
-  const spatial = trpc.spatial.overview.useQuery({});
+  const spatialOptions = trpc.spatial.overview.useQuery({});
+  const spatial = trpc.spatial.overview.useQuery({ year: year === "all" ? undefined : Number(year), areaId: areaId === "all" ? undefined : Number(areaId) });
   const narrative = trpc.dashboard.narrative.useMutation();
   const data = dashboard.data;
   const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
@@ -53,6 +56,7 @@ export default function Home() {
   const hasTargets = Boolean(data?.targetPerformance?.length);
   const firstCoverageYear = data?.trendByYear?.[0]?.year;
   const latestSpatialYear = spatial.data?.availableYears?.[0];
+  const areaOptions = useMemo(() => [...(spatialOptions.data?.regions ?? []), ...(spatialOptions.data?.cities ?? [])], [spatialOptions.data]);
   const activeAreas = useMemo(() => {
     const counts = new Map<string, { name: string; type: string; count: number }>();
     (spatial.data?.observations ?? []).filter((item) => item.year === latestSpatialYear).forEach((item) => {
@@ -102,12 +106,13 @@ export default function Home() {
 
       <section className="section-card flex flex-col gap-3 p-4 md:flex-row md:items-end md:justify-between">
         <div><h2 className="font-bold text-[#173f3d]">فلاتر العرض</h2><p className="mt-1 text-xs text-slate-500">تُحدّث البطاقات والرسوم وأحدث القياسات بحسب الاختيارات.</p></div>
-        <div className="grid gap-2 sm:grid-cols-5 sm:items-end">
+        <div className="grid gap-2 sm:grid-cols-6 sm:items-end">
           <label><span className="field-label">السنة</span><Select value={year} onValueChange={setYear}><SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">كل السنوات</SelectItem>{(data?.availableYears ?? []).map((option) => <SelectItem key={option} value={String(option)}>{formatYear(option)}</SelectItem>)}</SelectContent></Select></label>
+          <label><span className="field-label">المنطقة / المدينة</span><Select value={areaId} onValueChange={setAreaId}><SelectTrigger className="w-full sm:w-40"><MapPin className="ml-1.5 h-4 w-4 text-[#0f766e]" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">كل المناطق</SelectItem>{areaOptions.map((area) => <SelectItem key={area.id} value={String(area.id)}>{area.name}</SelectItem>)}</SelectContent></Select></label>
           <label><span className="field-label">المحور</span><Select value={axis} onValueChange={setAxis}><SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">كل المحاور</SelectItem><SelectItem value="اقتصادي">اقتصادي</SelectItem><SelectItem value="اجتماعي">اجتماعي</SelectItem><SelectItem value="بيئي">بيئي</SelectItem></SelectContent></Select></label>
           <label><span className="field-label">الإطار</span><Select value={framework} onValueChange={setFramework}><SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">كل الأطر</SelectItem><SelectItem value="UNWTO">UNWTO</SelectItem><SelectItem value="SDG">SDG</SelectItem></SelectContent></Select></label>
           <label><span className="field-label">هدف التنمية</span><Select value={sdgReference} onValueChange={setSdgReference}><SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">كل الأهداف</SelectItem><SelectItem value="SDG 8">SDG 8</SelectItem><SelectItem value="SDG 11">SDG 11</SelectItem><SelectItem value="SDG 12">SDG 12</SelectItem><SelectItem value="SDG 14">SDG 14</SelectItem><SelectItem value="SDG 17">SDG 17</SelectItem></SelectContent></Select></label>
-          <Button variant="outline" className="h-10" onClick={() => { setYear("all"); setAxis("all"); setFramework("all"); setSdgReference("all"); }}>إعادة الضبط</Button>
+          <Button variant="outline" className="h-10" onClick={() => { setYear("all"); setAreaId("all"); setAxis("all"); setFramework("all"); setSdgReference("all"); }}>إعادة الضبط</Button>
         </div>
       </section>
 

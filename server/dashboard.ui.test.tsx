@@ -49,7 +49,7 @@ describe("dashboard export and AI summary UI", () => {
     expect(screen.getByRole("button", { name: "PDF" })).toBeTruthy();
     expect(screen.getByText("نطاق العرض المعتمد")).toBeTruthy();
     expect(screen.getByText(/الملخص التنفيذي/)).toBeTruthy();
-    const sdgFilter = screen.getAllByRole("combobox")[3];
+    const sdgFilter = screen.getAllByRole("combobox")[4];
     fireEvent.pointerDown(sdgFilter, { button: 0, pointerType: "mouse" });
     fireEvent.click(screen.getByText("SDG 8"));
     fireEvent.click(screen.getByRole("button", { name: "توليد التقرير النصي" }));
@@ -64,7 +64,7 @@ describe("dashboard export and AI summary UI", () => {
     expect(screen.getByText("طرابلس")).toBeTruthy();
     expect(screen.getByText("2025")).toBeTruthy();
     expect(screen.queryByText("2.025")).toBeNull();
-    const axisFilter = screen.getAllByRole("combobox")[1];
+    const axisFilter = screen.getAllByRole("combobox")[2];
     fireEvent.pointerDown(axisFilter, { button: 0, pointerType: "mouse" });
     fireEvent.click(screen.getByRole("option", { name: "اقتصادي" }));
     expect(screen.getByText("نسبة تحقيق المستهدفات")).toBeTruthy();
