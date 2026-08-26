@@ -38,6 +38,7 @@ import {
   Send,
   CircleHelp,
   Download,
+  MessagesSquare,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -58,6 +59,7 @@ const navigation: { icon: typeof LayoutDashboard; label: string; path: string; a
   { icon: Send, label: "مركز النشر الموحد", path: "/publication", access: ["admin", "analyst", "viewer"] },
   { icon: Settings2, label: "المستخدمون والصلاحيات", path: "/users", access: ["admin"] },
   { icon: ShieldCheck, label: "مراجعة الأمان", path: "/security", access: ["admin"] },
+  { icon: MessagesSquare, label: "إدارة الدعم", path: "/support-admin", access: ["admin"] },
   { icon: CircleHelp, label: "المساعدة والدعم", path: "/help", access: ["admin", "analyst", "viewer"] },
 ];
 

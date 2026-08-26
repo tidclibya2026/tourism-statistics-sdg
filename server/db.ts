@@ -19,6 +19,8 @@ import {
   spatialAreas,
   spatialObservationReviewEvents,
   spatialObservations,
+  supportRequestAttachments,
+  supportRequestReplies,
   supportRequests,
   users,
 } from "../drizzle/schema";
@@ -976,13 +978,14 @@ export async function createSupportRequest(input: {
 export async function listMySupportRequests(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(supportRequests).where(eq(supportRequests.userId, userId)).orderBy(desc(supportRequests.createdAt)).limit(12);
+  const rows = await db.select().from(supportRequests).where(eq(supportRequests.userId, userId)).orderBy(desc(supportRequests.createdAt)).limit(12);
+  return hydrateSupportRequests(rows);
 }
 
 export async function listSupportRequests() {
   const db = await getDb();
   if (!db) return [];
-  return db.select({
+  const rows = await db.select({
     id: supportRequests.id,
     roleSnapshot: supportRequests.roleSnapshot,
     category: supportRequests.category,
@@ -994,6 +997,67 @@ export async function listSupportRequests() {
     submitterName: users.name,
     submitterEmail: users.email,
   }).from(supportRequests).leftJoin(users, eq(supportRequests.userId, users.id)).orderBy(desc(supportRequests.createdAt)).limit(100);
+  return hydrateSupportRequests(rows);
+}
+
+async function hydrateSupportRequests<T extends { id: number }>(rows: T[]) {
+  const db = await getDb();
+  if (!db || rows.length === 0) return rows.map((row) => ({ ...row, attachments: [], replies: [] }));
+  const requestIds = rows.map((row) => row.id);
+  const [attachments, replies] = await Promise.all([
+    db.select().from(supportRequestAttachments).where(inArray(supportRequestAttachments.supportRequestId, requestIds)).orderBy(asc(supportRequestAttachments.createdAt)),
+    db.select({
+      id: supportRequestReplies.id,
+      supportRequestId: supportRequestReplies.supportRequestId,
+      message: supportRequestReplies.message,
+      createdAt: supportRequestReplies.createdAt,
+      authorName: users.name,
+    }).from(supportRequestReplies).leftJoin(users, eq(supportRequestReplies.authorUserId, users.id)).where(inArray(supportRequestReplies.supportRequestId, requestIds)).orderBy(asc(supportRequestReplies.createdAt)),
+  ]);
+  return rows.map((row) => ({
+    ...row,
+    attachments: attachments.filter((item) => item.supportRequestId === row.id),
+    replies: replies.filter((item) => item.supportRequestId === row.id),
+  }));
+}
+
+export async function createSupportRequestReply(input: { supportRequestId: number; authorUserId: number; message: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const result = await db.insert(supportRequestReplies).values(input);
+  await db.update(supportRequests).set({ status: "in_progress" }).where(eq(supportRequests.id, input.supportRequestId));
+  return { id: Number(result[0].insertId) };
+}
+
+export async function getSupportRequestOwner(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select({ id: supportRequests.id, userId: supportRequests.userId })
+    .from(supportRequests).where(eq(supportRequests.id, id)).limit(1);
+  return rows[0];
+}
+
+export async function countSupportRequestAttachments(supportRequestId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db.select({ count: sql<number>`count(*)` }).from(supportRequestAttachments)
+    .where(eq(supportRequestAttachments.supportRequestId, supportRequestId));
+  return Number(rows[0]?.count ?? 0);
+}
+
+export async function createSupportRequestAttachment(input: {
+  supportRequestId: number;
+  uploadedBy: number;
+  fileName: string;
+  mimeType: string;
+  byteSize: number;
+  storageKey: string;
+  storageUrl: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const result = await db.insert(supportRequestAttachments).values(input);
+  return { id: Number(result[0].insertId), url: input.storageUrl };
 }
 
 export async function updateSupportRequestStatus(id: number, status: "open" | "in_progress" | "resolved" | "closed") {

@@ -13,6 +13,8 @@ import { calculateAnnualForecast } from "./forecast";
 import { validateUnitValues } from "../shared/unitValidation";
 import { invokeLLM } from "./_core/llm";
 import { buildDashboardNarrativePrompt, dashboardNarrativeSystemPrompt } from "./dashboardNarrative";
+import { answerHelpQuestion } from "./helpChatbot";
+import { storagePut } from "./storage";
 
 const axisSchema = z.enum(["اقتصادي", "اجتماعي", "بيئي"]);
 const frameworkSchema = z.enum(["UNWTO", "SDG"]);
@@ -23,6 +25,7 @@ const roleSchema = z.enum(["admin", "analyst", "viewer"]);
 const publicationStatusSchema = z.enum(["draft", "ready", "paused"]);
 const spatialAreaTypeSchema = z.enum(["region", "city"]);
 const boundaryStatusSchema = z.enum(["not_provided", "submitted", "verified"]);
+const supportAttachmentTypes = ["image/png", "image/jpeg", "application/pdf", "text/plain"] as const;
 
 const spatialAreaInput = z.object({
   code: z.string().trim().min(2).max(64),
@@ -385,6 +388,37 @@ export const appRouter = router({
       id: z.number().int().positive(),
       status: z.enum(["open", "in_progress", "resolved", "closed"]),
     })).mutation(({ input }) => db.updateSupportRequestStatus(input.id, input.status)),
+    reply: adminProcedure.input(z.object({
+      supportRequestId: z.number().int().positive(),
+      message: z.string().trim().min(3).max(5000),
+    })).mutation(({ ctx, input }) => db.createSupportRequestReply({ ...input, authorUserId: ctx.user.id })),
+    uploadAttachment: protectedProcedure.input(z.object({
+      supportRequestId: z.number().int().positive(),
+      fileName: z.string().trim().min(1).max(255),
+      mimeType: z.enum(supportAttachmentTypes),
+      base64: z.string().min(1).max(5_600_000),
+    })).mutation(async ({ ctx, input }) => {
+      const request = await db.getSupportRequestOwner(input.supportRequestId);
+      if (!request || request.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "يمكنك إرفاق ملف بطلب دعمك فقط." });
+      if (await db.countSupportRequestAttachments(input.supportRequestId) >= 3) throw new TRPCError({ code: "BAD_REQUEST", message: "الحد الأقصى ثلاث مرفقات لكل طلب." });
+      const data = Buffer.from(input.base64, "base64");
+      if (!data.length || data.length > 4 * 1024 * 1024) throw new TRPCError({ code: "BAD_REQUEST", message: "يجب ألا يتجاوز حجم المرفق 4 ميغابايت." });
+      const safeName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "attachment";
+      const stored = await storagePut(`support/${input.supportRequestId}/${ctx.user.id}-${safeName}`, data, input.mimeType);
+      return db.createSupportRequestAttachment({
+        supportRequestId: input.supportRequestId,
+        uploadedBy: ctx.user.id,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        byteSize: data.length,
+        storageKey: stored.key,
+        storageUrl: stored.url,
+      });
+    }),
+    chat: protectedProcedure.input(z.object({
+      question: z.string().trim().min(2).max(1200),
+      history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1800) })).max(6).default([]),
+    })).mutation(({ input }) => answerHelpQuestion(input)),
   }),
   imports: router({
     history: protectedProcedure.query(() => db.listImportJobs()),

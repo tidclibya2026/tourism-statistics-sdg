@@ -22,6 +22,7 @@ import SpatialDetail from "./pages/SpatialDetail";
 import Users from "./pages/Users";
 import SecurityReview from "./pages/SecurityReview";
 import HelpSupport from "./pages/HelpSupport";
+import SupportAdmin from "./pages/SupportAdmin";
 import { Route, Switch } from "wouter";
 
 function ProtectedPage({ children }: { children: React.ReactNode }) { return <DashboardLayout>{children}</DashboardLayout>; }
@@ -49,6 +50,7 @@ function Router() {
     <Route path="/users"><ProtectedPage><Users /></ProtectedPage></Route>
     <Route path="/security"><ProtectedPage><SecurityReview /></ProtectedPage></Route>
     <Route path="/help"><ProtectedPage><HelpSupport /></ProtectedPage></Route>
+    <Route path="/support-admin"><ProtectedPage><SupportAdmin /></ProtectedPage></Route>
     <Route path="/404" component={NotFound} />
     <Route component={NotFound} />
   </Switch>;

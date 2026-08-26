@@ -122,6 +122,42 @@ export const supportRequests = mysqlTable(
   ],
 );
 
+/** Administrative follow-up messages attached to a support request. */
+export const supportRequestReplies = mysqlTable(
+  "supportRequestReplies",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    supportRequestId: int("supportRequestId").notNull().references(() => supportRequests.id, { onDelete: "cascade" }),
+    authorUserId: int("authorUserId").notNull().references(() => users.id, { onDelete: "restrict" }),
+    message: text("message").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("support_replies_request_idx").on(table.supportRequestId),
+    index("support_replies_author_idx").on(table.authorUserId),
+  ],
+);
+
+/** Metadata only for support attachments; file bytes are stored in S3. */
+export const supportRequestAttachments = mysqlTable(
+  "supportRequestAttachments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    supportRequestId: int("supportRequestId").notNull().references(() => supportRequests.id, { onDelete: "cascade" }),
+    uploadedBy: int("uploadedBy").notNull().references(() => users.id, { onDelete: "cascade" }),
+    fileName: varchar("fileName", { length: 255 }).notNull(),
+    mimeType: varchar("mimeType", { length: 120 }).notNull(),
+    byteSize: int("byteSize").notNull(),
+    storageKey: varchar("storageKey", { length: 512 }).notNull(),
+    storageUrl: varchar("storageUrl", { length: 700 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("support_attachments_request_idx").on(table.supportRequestId),
+    index("support_attachments_uploader_idx").on(table.uploadedBy),
+  ],
+);
+
 /** One helpful/not-helpful signal per signed-in user and help section. */
 export const helpContentRatings = mysqlTable(
   "helpContentRatings",
