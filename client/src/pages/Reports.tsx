@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import QueryStateError from "@/components/QueryStateError";
-import { arabicNumber, asNumber, periodLabel } from "@/lib/tourism";
+import { arabicNumber, asNumber, formatYear, periodLabel } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
 import { toExcelReportRows } from "@/lib/reportExport";
 import html2canvas from "html2canvas";
@@ -95,7 +95,7 @@ export default function Reports() {
             <div>
               <p className="text-xs font-bold tracking-[.16em] text-[#b47730]">المرصد الوطني للسياحة</p>
               <h2 className="mt-1 font-bold text-[#173f3d]">تقرير القياسات المعتمدة</h2>
-              <p className="mt-1 text-xs text-slate-500">من {arabicNumber.format(Number(yearFrom))} إلى {arabicNumber.format(Number(yearTo))} · {data.length} قياس</p>
+              <p className="mt-1 text-xs text-slate-500">من {formatYear(yearFrom)} إلى {formatYear(yearTo)} · {data.length} قياس</p>
             </div>
             <Printer className="h-5 w-5 text-[#0f5c58]" />
           </div>
@@ -112,7 +112,7 @@ export default function Reports() {
           <table className="w-full min-w-[900px] text-right text-sm">
             <thead className="bg-[#f6f9f7] text-xs text-slate-500"><tr><th className="px-5 py-3">المؤشر</th><th className="px-4 py-3">التصنيف</th><th className="px-4 py-3">السنة والفترة</th><th className="px-4 py-3">القيمة</th><th className="px-4 py-3">المستهدف</th><th className="px-4 py-3">المصدر</th></tr></thead>
             <tbody className="divide-y divide-[#edf2ef]">
-              {query.isLoading ? <tr><td colSpan={6} className="p-8 text-center text-slate-500">جارٍ إنشاء التقرير…</td></tr> : data.length ? data.map((item) => <tr key={item.observation.id}><td className="px-5 py-3.5"><p className="font-semibold text-[#244844]">{item.indicator.name}</p><p className="mt-0.5 text-xs text-slate-500" dir="ltr">{item.indicator.code}</p></td><td className="px-4 py-3.5 text-slate-600">{item.indicator.axis} · {item.indicator.framework}{item.indicator.sdgReference ? ` · ${item.indicator.sdgReference}` : ""}</td><td className="px-4 py-3.5 text-slate-600">{arabicNumber.format(item.observation.year)} · {periodLabel(item.observation.period, item.observation.quarter)}</td><td className="px-4 py-3.5 font-bold text-[#0f5c58]">{arabicNumber.format(asNumber(item.observation.value))} {item.indicator.unit}</td><td className="px-4 py-3.5 text-slate-600">{item.observation.targetValue ? arabicNumber.format(asNumber(item.observation.targetValue)) : "—"}</td><td className="px-4 py-3.5 text-slate-600">{item.observation.source || "—"}</td></tr>) : <tr><td colSpan={6} className="p-10 text-center text-slate-500">لا توجد قياسات معتمدة ضمن الفترة المختارة.</td></tr>}
+              {query.isLoading ? <tr><td colSpan={6} className="p-8 text-center text-slate-500">جارٍ إنشاء التقرير…</td></tr> : data.length ? data.map((item) => <tr key={item.observation.id}><td className="px-5 py-3.5"><p className="font-semibold text-[#244844]">{item.indicator.name}</p><p className="mt-0.5 text-xs text-slate-500" dir="ltr">{item.indicator.code}</p></td><td className="px-4 py-3.5 text-slate-600">{item.indicator.axis} · {item.indicator.framework}{item.indicator.sdgReference ? ` · ${item.indicator.sdgReference}` : ""}</td><td className="px-4 py-3.5 text-slate-600">{formatYear(item.observation.year)} · {periodLabel(item.observation.period, item.observation.quarter)}</td><td className="px-4 py-3.5 font-bold text-[#0f5c58]">{arabicNumber.format(asNumber(item.observation.value))} {item.indicator.unit}</td><td className="px-4 py-3.5 text-slate-600">{item.observation.targetValue ? arabicNumber.format(asNumber(item.observation.targetValue)) : "—"}</td><td className="px-4 py-3.5 text-slate-600">{item.observation.source || "—"}</td></tr>) : <tr><td colSpan={6} className="p-10 text-center text-slate-500">لا توجد قياسات معتمدة ضمن الفترة المختارة.</td></tr>}
             </tbody>
           </table>
         </div>

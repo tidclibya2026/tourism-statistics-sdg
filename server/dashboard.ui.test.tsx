@@ -57,6 +57,8 @@ describe("dashboard export and AI summary UI", () => {
   it("يعرض مؤشرات الملخص والنطاق المعتمد ويدعم تبديل محور العرض", () => {
     render(<Home />);
     expect(screen.getByText("القياسات المعتمدة")).toBeTruthy();
+    expect(screen.getByText("2025")).toBeTruthy();
+    expect(screen.queryByText("2.025")).toBeNull();
     const axisFilter = screen.getAllByRole("combobox")[1];
     fireEvent.pointerDown(axisFilter, { button: 0, pointerType: "mouse" });
     fireEvent.click(screen.getByRole("option", { name: "اقتصادي" }));

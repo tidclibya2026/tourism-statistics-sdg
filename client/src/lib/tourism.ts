@@ -1,5 +1,11 @@
 export const arabicNumber = new Intl.NumberFormat("ar-LY", { maximumFractionDigits: 2 });
 
+/** تعرض السنوات كأرقام كاملة ثابتة؛ لا تستخدم فاصل الآلاف كي لا تصبح 2.025 بدلاً من 2025. */
+export function formatYear(value: number | string | null | undefined) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? String(Math.trunc(numeric)) : "—";
+}
+
 export const axisMeta = {
   اقتصادي: { label: "اقتصادي", className: "bg-amber-100 text-amber-800 border-amber-200" },
   اجتماعي: { label: "اجتماعي", className: "bg-sky-100 text-sky-800 border-sky-200" },
@@ -34,4 +40,3 @@ export function asNumber(value: string | number | null | undefined) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
-
