@@ -38,6 +38,18 @@ export function getPrintablePdfTitle(fileName: string) {
   return fileName.replace(/\.pdf$/i, "");
 }
 
+type PrintWindowCleanupTarget = Pick<Window, "addEventListener" | "close" | "focus"> & { closed: boolean };
+type SourceWindowTarget = Pick<Window, "focus" | "setTimeout">;
+
+export function returnToApplicationAfterPrint(printWindow: PrintWindowCleanupTarget, sourceWindow: SourceWindowTarget = window) {
+  printWindow.addEventListener("afterprint", () => {
+    sourceWindow.setTimeout(() => {
+      if (!printWindow.closed) printWindow.close();
+      sourceWindow.focus();
+    }, 0);
+  }, { once: true });
+}
+
 export function openPrintablePdf(element: HTMLElement, fileName: string) {
   const printWindow = window.open("", "_blank");
   if (!printWindow) throw new Error("تعذر فتح نافذة حفظ PDF. تحقق من السماح بالنوافذ المنبثقة لهذا الرابط الداخلي.");
@@ -64,6 +76,8 @@ export function openPrintablePdf(element: HTMLElement, fileName: string) {
   root.className = "pdf-print-root";
   root.append(element.cloneNode(true));
   printWindow.document.body.append(root);
+
+  returnToApplicationAfterPrint(printWindow);
 
   const print = () => {
     printWindow.focus();
