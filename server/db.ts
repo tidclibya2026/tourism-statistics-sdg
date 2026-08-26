@@ -22,6 +22,7 @@ import {
   supportRequestAttachments,
   supportRequestReplies,
   supportRequests,
+  supportNotifications,
   users,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -1024,15 +1025,24 @@ async function hydrateSupportRequests<T extends { id: number }>(rows: T[]) {
 export async function createSupportRequestReply(input: { supportRequestId: number; authorUserId: number; message: string }) {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const request = await getSupportRequestOwner(input.supportRequestId);
+  if (!request) throw new Error("طلب الدعم غير موجود.");
   const result = await db.insert(supportRequestReplies).values(input);
   await db.update(supportRequests).set({ status: "in_progress" }).where(eq(supportRequests.id, input.supportRequestId));
+  await db.insert(supportNotifications).values({
+    userId: request.userId,
+    supportRequestId: input.supportRequestId,
+    type: "reply",
+    title: "رد جديد من إدارة الدعم",
+    message: `وصل رد جديد بخصوص طلب الدعم: ${request.subject}`.slice(0, 600),
+  });
   return { id: Number(result[0].insertId) };
 }
 
 export async function getSupportRequestOwner(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const rows = await db.select({ id: supportRequests.id, userId: supportRequests.userId })
+  const rows = await db.select({ id: supportRequests.id, userId: supportRequests.userId, subject: supportRequests.subject, status: supportRequests.status })
     .from(supportRequests).where(eq(supportRequests.id, id)).limit(1);
   return rows[0];
 }
@@ -1063,7 +1073,37 @@ export async function createSupportRequestAttachment(input: {
 export async function updateSupportRequestStatus(id: number, status: "open" | "in_progress" | "resolved" | "closed") {
   const db = await getDb();
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const request = await getSupportRequestOwner(id);
+  if (!request) throw new Error("طلب الدعم غير موجود.");
   await db.update(supportRequests).set({ status }).where(eq(supportRequests.id, id));
+  const labels = { open: "جديدة", in_progress: "قيد المتابعة", resolved: "تم الحل", closed: "أغلقت" };
+  await db.insert(supportNotifications).values({
+    userId: request.userId,
+    supportRequestId: id,
+    type: "status",
+    title: "تحديث حالة طلب الدعم",
+    message: `أصبحت حالة طلب «${request.subject}»: ${labels[status]}`.slice(0, 600),
+  });
+  return { success: true };
+}
+
+export async function createSupportNotification(input: { userId: number; supportRequestId: number; type: "reply" | "status" | "escalation"; title: string; message: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const result = await db.insert(supportNotifications).values(input);
+  return { id: Number(result[0].insertId) };
+}
+
+export async function listSupportNotifications(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(supportNotifications).where(eq(supportNotifications.userId, userId)).orderBy(desc(supportNotifications.createdAt)).limit(20);
+}
+
+export async function markSupportNotificationsRead(userId: number, ids: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.update(supportNotifications).set({ readAt: new Date() }).where(and(eq(supportNotifications.userId, userId), inArray(supportNotifications.id, ids)));
   return { success: true };
 }
 

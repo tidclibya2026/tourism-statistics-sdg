@@ -4,13 +4,19 @@ const dbMock = vi.hoisted(() => ({
   countSupportRequestAttachments: vi.fn(),
   createSupportRequestAttachment: vi.fn(),
   createSupportRequestReply: vi.fn(),
+  createSupportRequest: vi.fn(),
+  createSupportNotification: vi.fn(),
   getSupportRequestOwner: vi.fn(),
+  listSupportNotifications: vi.fn(),
+  markSupportNotificationsRead: vi.fn(),
 }));
 const storageMock = vi.hoisted(() => ({ storagePut: vi.fn() }));
+const notificationMock = vi.hoisted(() => ({ notifyOwner: vi.fn() }));
 
 vi.mock("./db", () => dbMock);
 vi.mock("./storage", () => storageMock);
 vi.mock("./helpChatbot", () => ({ answerHelpQuestion: vi.fn() }));
+vi.mock("./_core/notification", () => notificationMock);
 
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
@@ -49,5 +55,25 @@ describe("support replies and attachments", () => {
     await caller.support.uploadAttachment({ supportRequestId: 3, fileName: "screen.png", mimeType: "image/png", base64: "aGVsbG8=" });
     expect(storageMock.storagePut).toHaveBeenCalledWith(expect.stringContaining("support/3/7-"), expect.any(Buffer), "image/png");
     expect(dbMock.createSupportRequestAttachment).toHaveBeenCalledWith(expect.objectContaining({ supportRequestId: 3, uploadedBy: 7, byteSize: 5 }));
+  });
+
+  it("يصعّد المحادثة إلى طلب بشري موثق وينبه المالك دون كشف التفاصيل", async () => {
+    dbMock.createSupportRequest.mockResolvedValue({ id: 14 });
+    dbMock.createSupportNotification.mockResolvedValue({ id: 5 });
+    notificationMock.notifyOwner.mockResolvedValue(true);
+    const caller = appRouter.createCaller(context("viewer", 7));
+    await caller.support.escalateToHuman({ message: "لم أجد طريقة استكمال مراجعة القياس بعد اتباع الدليل." });
+    expect(dbMock.createSupportRequest).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, category: "question", subject: "تصعيد من المساعد الذكي إلى الدعم البشري" }));
+    expect(dbMock.createSupportNotification).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, supportRequestId: 14, type: "escalation" }));
+    expect(notificationMock.notifyOwner).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("14") }));
+  });
+
+  it("يعرض الإشعارات للحساب الحالي ويقيد تعليمها كمقروءة به", async () => {
+    dbMock.listSupportNotifications.mockResolvedValue([{ id: 8, title: "رد جديد" }]);
+    dbMock.markSupportNotificationsRead.mockResolvedValue({ success: true });
+    const caller = appRouter.createCaller(context("analyst", 12));
+    await expect(caller.support.notifications()).resolves.toEqual([{ id: 8, title: "رد جديد" }]);
+    await caller.support.markNotificationsRead({ ids: [8] });
+    expect(dbMock.markSupportNotificationsRead).toHaveBeenCalledWith(12, [8]);
   });
 });

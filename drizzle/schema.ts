@@ -158,6 +158,25 @@ export const supportRequestAttachments = mysqlTable(
   ],
 );
 
+/** In-app notifications for support request replies and status changes. */
+export const supportNotifications = mysqlTable(
+  "supportNotifications",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    supportRequestId: int("supportRequestId").notNull().references(() => supportRequests.id, { onDelete: "cascade" }),
+    type: mysqlEnum("type", ["reply", "status", "escalation"]).notNull(),
+    title: varchar("title", { length: 180 }).notNull(),
+    message: varchar("message", { length: 600 }).notNull(),
+    readAt: timestamp("readAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("support_notifications_user_read_idx").on(table.userId, table.readAt),
+    index("support_notifications_request_idx").on(table.supportRequestId),
+  ],
+);
+
 /** One helpful/not-helpful signal per signed-in user and help section. */
 export const helpContentRatings = mysqlTable(
   "helpContentRatings",

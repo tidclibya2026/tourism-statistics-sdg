@@ -15,6 +15,7 @@ import { invokeLLM } from "./_core/llm";
 import { buildDashboardNarrativePrompt, dashboardNarrativeSystemPrompt } from "./dashboardNarrative";
 import { answerHelpQuestion } from "./helpChatbot";
 import { storagePut } from "./storage";
+import { notifyOwner } from "./_core/notification";
 
 const axisSchema = z.enum(["اقتصادي", "اجتماعي", "بيئي"]);
 const frameworkSchema = z.enum(["UNWTO", "SDG"]);
@@ -419,6 +420,28 @@ export const appRouter = router({
       question: z.string().trim().min(2).max(1200),
       history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1800) })).max(6).default([]),
     })).mutation(({ input }) => answerHelpQuestion(input)),
+    notifications: protectedProcedure.query(({ ctx }) => db.listSupportNotifications(ctx.user.id)),
+    markNotificationsRead: protectedProcedure.input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(20) })).mutation(({ ctx, input }) => db.markSupportNotificationsRead(ctx.user.id, input.ids)),
+    escalateToHuman: protectedProcedure.input(z.object({
+      message: z.string().trim().min(10, "اشرح ما الذي لم يحله المساعد.").max(3000),
+    })).mutation(async ({ ctx, input }) => {
+      const created = await db.createSupportRequest({
+        userId: ctx.user.id,
+        roleSnapshot: ctx.user.role,
+        category: "question",
+        subject: "تصعيد من المساعد الذكي إلى الدعم البشري",
+        message: input.message,
+      });
+      await db.createSupportNotification({
+        userId: ctx.user.id,
+        supportRequestId: created.id,
+        type: "escalation",
+        title: "تم تحويل طلبك إلى الدعم البشري",
+        message: "سيتابع فريق الدعم طلبك من خلال مركز المساعدة.",
+      });
+      await notifyOwner({ title: "تصعيد جديد إلى الدعم البشري", content: `طلب دعم جديد برقم ${created.id} يحتاج متابعة بشرية.` }).catch(() => false);
+      return created;
+    }),
   }),
   imports: router({
     history: protectedProcedure.query(() => db.listImportJobs()),

@@ -20,6 +20,7 @@ import { trpc } from "@/lib/trpc";
 import { downloadUserGuidePdf } from "@/lib/helpPdf";
 import { type HelpRole } from "@/lib/helpContent";
 import { OnboardingTour, useOnboardingPrompt } from "./OnboardingTour";
+import { SupportNotificationBell } from "./SupportNotificationBell";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
@@ -171,6 +172,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div className="flex items-center gap-1.5 md:gap-2">
             <Button variant="ghost" size="sm" className="hidden h-9 text-[#0f5c58] hover:bg-[#e4f0ed] md:flex" onClick={() => setTourOpen(true)}><Sparkles className="ml-1.5 h-4 w-4" />جولة</Button>
+            <SupportNotificationBell onOpenHelp={() => setLocation("/help")} />
             <Button variant="ghost" size="icon" className="h-9 w-9 text-[#0f5c58] hover:bg-[#e4f0ed]" onClick={() => setLocation("/help")} aria-label="المساعدة والدعم"><CircleHelp className="h-4.5 w-4.5" /></Button>
             <Button variant="ghost" size="icon" className="h-9 w-9 text-[#0f5c58] hover:bg-[#e4f0ed]" onClick={downloadGuide} disabled={downloadingGuide} aria-label="تنزيل دليل المستخدم PDF"><Download className="h-4.5 w-4.5" /></Button>
             <div className="hidden items-center gap-2 md:flex">
