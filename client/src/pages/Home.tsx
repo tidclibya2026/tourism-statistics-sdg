@@ -11,7 +11,9 @@ import { Activity, BadgeCheck, CalendarDays, ChartNoAxesCombined, Database, File
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import React, { useMemo, useRef, useState } from "react";
+import { MapView } from "@/components/Map";
+import { detachMapMarkers } from "@shared/mapMarkers";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const axisColors = ["#c58a3f", "#25829a", "#20806c"];
@@ -51,6 +53,7 @@ export default function Home() {
   const narrative = trpc.dashboard.narrative.useMutation();
   const data = dashboard.data;
   const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
+  const isRefreshing = dashboard.isFetching || spatial.isFetching || spatialOptions.isFetching;
 
   const summary = data?.summary ?? { totalIndicators: 0, publishedIndicators: 0, approvedObservations: 0, latestYear: null, indicatorsWithTargets: 0, achievedTargets: 0 };
   const hasTargets = Boolean(data?.targetPerformance?.length);
@@ -94,7 +97,7 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-6" ref={dashboardRef}>
+    <div className="relative space-y-6" ref={dashboardRef}>{isRefreshing && <div className="sticky top-3 z-30 mx-auto flex w-fit items-center gap-2 rounded-full border border-[#b9d7cf] bg-white/95 px-4 py-2 text-xs font-semibold text-[#0f766e] shadow-lg" role="status" aria-live="polite"><LoaderCircle className="h-4 w-4 animate-spin" />جارٍ تحديث البيانات حسب الفلاتر…</div>}
       <section className="relative overflow-hidden rounded-[1.5rem] bg-[#0f5c58] px-6 py-7 text-white shadow-[0_20px_45px_rgba(15,92,88,.18)] md:px-8">
         <div className="absolute -left-10 -top-14 h-44 w-44 rounded-full border-[20px] border-[#c58a3f]/25" />
         <div className="relative max-w-2xl">
@@ -137,6 +140,8 @@ export default function Home() {
 
       <section className="grid gap-5 xl:grid-cols-2"><Card className="overflow-hidden border-0 bg-[linear-gradient(135deg,#0f5c58,#16786f)] text-white shadow-[0_18px_40px_rgba(15,92,88,.16)]"><CardContent className="p-5 md:p-6"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold text-teal-100">آخر سنة مكانية متاحة: {latestSpatialYear ? formatYear(latestSpatialYear) : "—"}</p><h2 className="mt-1 text-xl font-bold">أكثر المناطق نشاطاً</h2><p className="mt-1 text-xs leading-6 text-teal-50/80">حسب عدد القياسات السنوية المعتمدة المتاحة لكل منطقة.</p></div><span className="grid h-11 w-11 place-items-center rounded-xl bg-white/15"><MapPinned className="h-5 w-5" /></span></div><div className="mt-5 space-y-3">{activeAreas.length ? activeAreas.map((area, index) => <div key={area.name} className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2.5"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[#c58a3f] text-sm font-bold text-[#173f3d]">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{area.name}</p><p className="text-[11px] text-teal-100/75">{area.type}</p></div><strong className="text-sm">{arabicNumber.format(area.count)} قياس</strong></div>) : <p className="rounded-xl bg-white/10 p-4 text-sm text-teal-50">لا تتوفر قياسات مكانية معتمدة كافية للترتيب.</p>}</div></CardContent></Card><Card className="overflow-hidden border-0 bg-[linear-gradient(135deg,#fff8eb,#f7ead2)] shadow-[0_18px_40px_rgba(180,119,48,.12)]"><CardContent className="p-5 md:p-6"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold text-[#a46725]">من القياسات الوطنية السنوية المعتمدة</p><h2 className="mt-1 text-xl font-bold text-[#173f3d]">أعلى المؤشرات نمواً</h2><p className="mt-1 text-xs leading-6 text-slate-600">مقارنة بين أول وآخر سنة متاحة لكل مؤشر؛ لا تُعرض المؤشرات ذات السلسلة غير الكافية.</p></div><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#f1d9ad] text-[#a46725]"><TrendingUp className="h-5 w-5" /></span></div><div className="mt-5 space-y-3">{data?.indicatorGrowth?.length ? data.indicatorGrowth.map((item, index) => <div key={item.indicatorId} className="flex items-center gap-3 rounded-xl border border-[#ead8b7] bg-white/65 px-3 py-2.5"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[#f1d9ad] text-sm font-bold text-[#8d5c22]">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[#244844]">{item.name}</p><p className="text-[11px] text-slate-500">{formatYear(item.firstYear)}–{formatYear(item.lastYear)} · {item.unit}</p></div><strong className={`text-sm ${item.growthPercent >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{item.growthPercent >= 0 ? "+" : ""}{item.growthPercent.toLocaleString("ar-LY", { maximumFractionDigits: 1 })}%</strong></div>) : <p className="rounded-xl border border-dashed border-[#e4cfaa] p-4 text-sm text-slate-600">لا تتوفر سلسلة سنوية كافية لحساب النمو.</p>}</div></CardContent></Card></section>
 
+      <DashboardActivityMap areas={activeAreas} year={latestSpatialYear} />
+
       <section className="grid gap-5 xl:grid-cols-[1.35fr_.95fr]">
         <Card className="border-[#dce8e4] shadow-sm"><CardContent className="p-5 md:p-6"><div className="mb-5 flex items-start justify-between"><div><h3 className="font-bold text-[#173f3d]">{hasTargets ? "نسبة تحقيق المستهدفات" : "التغطية الزمنية حسب المحور"}</h3><p className="mt-1 text-xs text-slate-500">{hasTargets ? "مقارنة موحّدة بالقيمة المستهدفة = 100%، حتى عند اختلاف وحدات القياس." : "عدد القياسات السنوية المعتمدة في كل محور؛ لا يمثل تغيراً في قيمة المؤشر."}</p></div><Target className="h-5 w-5 text-[#b47730]" /></div>{hasTargets ? <div className="h-[340px]" dir="ltr"><ResponsiveContainer width="100%" height="100%"><BarChart data={data?.targetPerformance?.slice(0, 8)} layout="vertical" margin={{ top: 4, right: 30, left: 22, bottom: 0 }}><CartesianGrid horizontal={false} stroke="#e4ece9" /><XAxis type="number" domain={[0, "dataMax + 10"]} tickFormatter={(value) => `${value}%`} tick={{ fill: "#64748b", fontSize: 12 }} /><YAxis type="category" dataKey="name" width={118} tick={{ fill: "#475569", fontSize: 11 }} /><Tooltip formatter={(value) => [`${Number(value).toLocaleString("ar-LY", { maximumFractionDigits: 1 })}%`, "تحقيق الهدف"]} /><ReferenceLine x={100} stroke="#c58a3f" strokeDasharray="5 4" label={{ value: "الهدف", position: "top", fill: "#a46725", fontSize: 11 }} /><Bar dataKey="attainment" name="تحقيق الهدف" radius={[0, 7, 7, 0]}>{data?.targetPerformance?.slice(0, 8).map((entry) => <Cell key={entry.indicatorId} fill={entry.status === "achieved" ? "#20806c" : "#d08a35"} />)}</Bar></BarChart></ResponsiveContainer></div> : data?.axisCoverageByYear?.length ? <div className="h-[340px]" dir="ltr"><ResponsiveContainer width="100%" height="100%"><BarChart data={data.axisCoverageByYear} margin={{ top: 6, right: 12, left: -20, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" stroke="#e4ece9" /><XAxis dataKey="year" tick={{ fill: "#64748b", fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 11 }} /><Tooltip formatter={(value, name) => [arabicNumber.format(Number(value)), name]} /><Legend wrapperStyle={{ fontSize: 12, paddingTop: 10 }} /><Bar stackId="axis" dataKey="اقتصادي" fill="#c58a3f" radius={[0, 0, 4, 4]} /><Bar stackId="axis" dataKey="اجتماعي" fill="#25829a" /><Bar stackId="axis" dataKey="بيئي" fill="#20806c" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div> : <EmptyChart message="ستظهر التغطية بعد اعتماد قياسات سنوية." />}</CardContent></Card>
         <Card className="border-[#dce8e4] shadow-sm"><CardContent className="p-5 md:p-6"><div className="mb-4"><h3 className="font-bold text-[#173f3d]">{hasTargets ? "القيمة الفعلية مقابل الهدف" : "قراءة جاهزية البيانات"}</h3><p className="mt-1 text-xs text-slate-500">{hasTargets ? "أحدث قياس سنوي معتمد لكل مؤشر له هدف." : "ملخص قابلية العرض؛ لا تُستبدل القيم المستهدفة غير الواردة في المصادر الرسمية."}</p></div>{hasTargets ? <div className="divide-y divide-[#e8efec]">{data?.targetPerformance?.slice(0, 6).map((item) => <div className="py-3" key={item.indicatorId}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#254743]">{item.name}</p><p className="mt-1 text-xs text-slate-500">{formatYear(item.year)} · {item.unit}</p></div><Badge className={`${item.status === "achieved" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"} border-0`}>{item.attainment.toLocaleString("ar-LY", { maximumFractionDigits: 1 })}%</Badge></div><div className="mt-2 flex items-center justify-between text-xs"><span className="text-slate-500">فعلي: <strong className="text-[#0f5c58]">{arabicNumber.format(item.actual)}</strong></span><span className="text-slate-500">مستهدف: <strong className="text-[#b47730]">{arabicNumber.format(item.target)}</strong></span></div></div>)}</div> : <div className="space-y-3">{data?.axisDistribution?.map((item) => <div key={item.axis} className="rounded-xl bg-[#f6f9f7] px-3 py-3"><div className="flex items-center justify-between text-sm"><span className="font-semibold text-[#254743]">{item.axis}</span><strong className="text-[#0f5c58]">{arabicNumber.format(item.count)} مؤشر</strong></div></div>)}<p className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-3 text-xs leading-6 text-amber-900">لا توجد قيم مستهدفة سنوية معتمدة في المصادر المتاحة؛ لذلك تُعرض التغطية والبيانات الفعلية بدلاً من نسب أداء مصطنعة.</p></div>}</CardContent></Card>
@@ -171,6 +176,37 @@ export default function Home() {
       </section>
     </div>
   );
+}
+
+function DashboardActivityMap({ areas, year }: { areas: { name: string; type: string; count: number }[]; year?: number }) {
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const markerRefs = useRef<google.maps.Marker[]>([]);
+  const geocodeCache = useRef<Map<string, google.maps.LatLngLiteral>>(new Map());
+  useEffect(() => {
+    if (!map || !window.google) return;
+    markerRefs.current = detachMapMarkers(markerRefs.current) as google.maps.Marker[];
+    const geocoder = new window.google.maps.Geocoder();
+    let cancelled = false;
+    areas.forEach((area, index) => {
+      const draw = (position: google.maps.LatLngLiteral) => {
+        if (cancelled) return;
+        const marker = new window.google.maps.Marker({ map, position, title: area.name, label: { text: String(index + 1), color: "#ffffff", fontWeight: "700" }, icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 13, fillColor: index === 0 ? "#c58a3f" : "#0f766e", fillOpacity: 1, strokeColor: "#ffffff", strokeWeight: 2 } });
+        const info = new window.google.maps.InfoWindow({ content: `<div dir="rtl" style="font-family:Arial;padding:5px 4px;min-width:150px"><strong>${area.name}</strong><br/><small>${area.type} · ${area.count} قياس معتمد</small></div>` });
+        marker.addListener("click", () => info.open({ map, anchor: marker }));
+        markerRefs.current.push(marker);
+      };
+      const cached = geocodeCache.current.get(area.name);
+      if (cached) { draw(cached); return; }
+      geocoder.geocode({ address: `${area.name}، ليبيا` }, (results, status) => {
+        if (cancelled || status !== "OK" || !results?.[0]?.geometry?.location) return;
+        const position = { lat: results[0].geometry.location.lat(), lng: results[0].geometry.location.lng() };
+        geocodeCache.current.set(area.name, position);
+        draw(position);
+      });
+    });
+    return () => { cancelled = true; markerRefs.current = detachMapMarkers(markerRefs.current) as google.maps.Marker[]; };
+  }, [areas, map]);
+  return <section className="overflow-hidden rounded-2xl border border-[#cfe2db] bg-white shadow-sm"><div className="flex items-center justify-between gap-3 border-b border-[#e4efeb] px-5 py-4"><div><h2 className="font-bold text-[#173f3d]">خريطة النشاط الجغرافي</h2><p className="mt-1 text-xs text-slate-500">عرض تفاعلي لأكثر المناطق نشاطاً في {year ? formatYear(year) : "أحدث سنة متاحة"}؛ انقر على العلامة لعرض التفاصيل.</p></div><MapPinned className="h-5 w-5 text-[#b47730]" /></div><MapView className="h-[360px]" initialCenter={{ lat: 26.3351, lng: 17.2283 }} initialZoom={5} onMapReady={setMap} /></section>;
 }
 
 function EmptyChart({ message }: { message: string }) { return <div className="grid h-72 place-items-center rounded-xl border border-dashed border-[#cfe0da] bg-[#f8fbf9] p-7 text-center text-sm leading-6 text-slate-500">{message}</div>; }
