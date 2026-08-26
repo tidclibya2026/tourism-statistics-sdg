@@ -10,6 +10,7 @@ describe("preparePdfCaptureDocument", () => {
 
     expect(clonedDocument.querySelector(`[${PDF_CAPTURE_ROOT_ATTRIBUTE}]`)?.classList.contains("pdf-render-root")).toBe(true);
     expect(clonedDocument.head.querySelector("style")?.textContent).toContain("--background: #ffffff");
+    expect(clonedDocument.head.querySelector("style")?.textContent).toContain("--color-background: #ffffff");
     expect(clonedDocument.head.querySelector("style")?.textContent).not.toContain("oklch(");
   });
 
