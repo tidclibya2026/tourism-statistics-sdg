@@ -101,6 +101,13 @@ html.accessibility-high-contrast { --foreground: oklch(0.14 0 0); --muted-foregr
 .dark .text-slate-500, .dark .text-slate-600, .dark .text-slate-700 { color: oklch(0.8 0.015 170) !important; }
 .dark .text-\[\#173f3d\], .dark .text-\[\#153c39\] { color: oklch(0.96 0.01 170) !important; }
 .dark .border-\[\#dce8e4\], .dark .border-\[\#e3ece9\] { border-color: oklch(0.39 0.03 174) !important; }
+.dark .section-card, .dark .metric-card, .dark .table-shell { background-color: var(--card) !important; color: var(--card-foreground); border-color: var(--border) !important; }
+.dark .bg-\[\#f6f9f7\], .dark .bg-\[\#f5f9f7\], .dark .bg-\[\#f2faf6\], .dark .bg-\[\#eff9f4\], .dark .bg-\[\#f9fcfa\] { background-color: oklch(0.27 0.03 174) !important; }
+.dark .bg-\[\#e9f4f1\], .dark .bg-\[\#e6f1ee\], .dark .bg-\[\#e5f2f7\], .dark .bg-\[\#dff0e9\], .dark .bg-\[\#dcefe7\] { background-color: oklch(0.32 0.04 174) !important; }
+.dark .text-\[\#173f3d\], .dark .text-\[\#244844\], .dark .text-\[\#365a56\] { color: oklch(0.94 0.012 168) !important; }
+.dark .divide-\[\#edf2ef\] > :not([hidden]) ~ :not([hidden]), .dark .divide-\[\#e8efec\] > :not([hidden]) ~ :not([hidden]) { border-color: var(--border) !important; }
+.dark input, .dark textarea, .dark select { color: var(--foreground); background-color: var(--card); }
+.dark table thead { background-color: oklch(0.29 0.03 174) !important; }
 
 @layer base {
   * { @apply border-border outline-ring/50; }

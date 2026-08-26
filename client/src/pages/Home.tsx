@@ -7,7 +7,7 @@ import { downloadDashboardWorkbook } from "@/lib/dashboardDownload";
 import { exportDashboardPdf } from "@/lib/dashboardPdf";
 import { Streamdown } from "streamdown";
 import html2canvas from "html2canvas";
-import { Activity, BadgeCheck, CalendarDays, ChartNoAxesCombined, Database, FileSpreadsheet, FileText, Layers3, Sparkles, Target, Trophy } from "lucide-react";
+import { Activity, BadgeCheck, CalendarDays, ChartNoAxesCombined, Database, FileSpreadsheet, FileText, Layers3, LoaderCircle, Sparkles, Target, Trophy } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ export default function Home() {
   const dashboard = trpc.dashboard.summary.useQuery(dashboardInput);
   const narrative = trpc.dashboard.narrative.useMutation();
   const data = dashboard.data;
+  const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
 
   if (dashboard.isLoading) {
     return <div className="space-y-5"><Skeleton className="h-28 w-full rounded-2xl" /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton className="h-36 rounded-2xl" key={index} />)}</div><Skeleton className="h-80 rounded-2xl" /></div>;
@@ -57,18 +58,24 @@ export default function Home() {
 
   async function exportExcel() {
     if (!data) { toast.error("لا تتوفر بيانات لوحة المعلومات للتصدير."); return; }
+    setExporting("excel");
     try {
       const chart = dashboardRef.current?.querySelector(".recharts-responsive-container") as HTMLElement | null;
       const chartImage = chart ? (await html2canvas(chart, { scale: 2, backgroundColor: "#ffffff", useCORS: true })).toDataURL("image/png") : undefined;
       await downloadDashboardWorkbook(data, chartImage);
+      toast.success("تم تنزيل لوحة المؤشرات بصيغة Excel.");
     } catch { toast.error("تعذر إنشاء ملف Excel في الوقت الحالي."); }
+    finally { setExporting(null); }
   }
 
   async function exportPdf() {
     if (!dashboardRef.current || !data) { toast.error("لا تتوفر بيانات لوحة المعلومات للتصدير."); return; }
+    setExporting("pdf");
     try {
       await exportDashboardPdf(dashboardRef.current, `لوحة-المؤشرات-${new Date().toISOString().slice(0, 10)}.pdf`);
+      toast.success("تم فتح نافذة حفظ PDF؛ ستعود إلى المنصة بعد الحفظ أو الإلغاء.");
     } catch { toast.error("تعذر إنشاء ملف PDF في الوقت الحالي."); }
+    finally { setExporting(null); }
   }
 
   return (
@@ -93,7 +100,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="section-card flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"><div><h2 className="font-bold text-[#173f3d]">تصدير لوحة المعلومات</h2><p className="mt-1 text-xs text-slate-500">يتضمن PDF الرسوم المرئية الحالية، بينما يضم Excel الملخص وبيانات الرسوم وتحقيق الأهداف.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportExcel}><FileSpreadsheet className="ml-1.5 h-4 w-4 text-emerald-700" />Excel</Button><Button className="bg-[#0f5c58] hover:bg-[#0a4845]" onClick={exportPdf}><FileText className="ml-1.5 h-4 w-4" />PDF</Button></div></section>
+      <section className="section-card flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"><div><h2 className="font-bold text-[#173f3d]">تصدير لوحة المعلومات</h2><p className="mt-1 text-xs text-slate-500">يتضمن PDF الرسوم المرئية الحالية، بينما يضم Excel الملخص وبيانات الرسوم وتحقيق الأهداف.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={exportExcel} disabled={Boolean(exporting) || dashboard.isLoading} aria-busy={exporting === "excel"}>{exporting === "excel" ? <LoaderCircle className="ml-1.5 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="ml-1.5 h-4 w-4 text-emerald-700" />}Excel</Button><Button className="bg-[#0f5c58] hover:bg-[#0a4845]" onClick={exportPdf} disabled={Boolean(exporting) || dashboard.isLoading} aria-busy={exporting === "pdf"}>{exporting === "pdf" ? <LoaderCircle className="ml-1.5 h-4 w-4 animate-spin" /> : <FileText className="ml-1.5 h-4 w-4" />}PDF</Button></div></section>
 
       <section className="overflow-hidden rounded-2xl border border-[#cae1d7] bg-[linear-gradient(135deg,#eff9f4,#f9fcfa)] p-5"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#dff0e9] text-[#0f5c58]"><Sparkles className="h-5 w-5" /></span><div><h2 className="font-bold text-[#173f3d]">ملخص ذكي للوحة المعلومات</h2><p className="mt-1 max-w-2xl text-xs leading-6 text-slate-600">ينشأ التقرير عند الطلب من البيانات المصفاة فقط، ولا يضيف أرقاماً أو استنتاجات غير موجودة في سجلات المنظومة.</p></div></div><Button className="bg-[#0f5c58] hover:bg-[#0a4845]" onClick={() => narrative.mutate(dashboardInput)} disabled={narrative.isPending || !data}><Sparkles className="ml-1.5 h-4 w-4" />{narrative.isPending ? "جارٍ توليد الملخص…" : "توليد التقرير النصي"}</Button></div>{narrative.isError && <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{narrative.error.message}</div>}{narrative.data?.text && <div className="prose prose-slate mt-5 max-w-none rounded-xl border border-[#dbe9e3] bg-white p-4 text-sm leading-7 text-slate-700"><Streamdown>{narrative.data.text}</Streamdown></div>}</section>
 
