@@ -25,8 +25,12 @@ export type DashboardPdfDependencies = {
   createPdf: () => PdfLike;
 };
 
+export function getPdfCaptureOptions(backgroundColor = "#f4f7f5") {
+  return { scale: 1.5, backgroundColor, useCORS: true, foreignObjectRendering: true, logging: false };
+}
+
 const defaultDependencies: DashboardPdfDependencies = {
-  capture: (element) => html2canvas(element, { scale: 1.5, backgroundColor: "#f4f7f5", useCORS: true }),
+  capture: (element) => html2canvas(element, getPdfCaptureOptions()),
   createPdf: () => new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" }),
 };
 
@@ -44,7 +48,7 @@ export async function exportDashboardPdf(element: HTMLElement, fileName: string,
   pdf.save(fileName);
 }
 
-export async function exportElementPng(element: HTMLElement, fileName: string, capture = (target: HTMLElement) => html2canvas(target, { scale: 3, backgroundColor: "#f8fbfa", useCORS: true })) {
+export async function exportElementPng(element: HTMLElement, fileName: string, capture = (target: HTMLElement) => html2canvas(target, { ...getPdfCaptureOptions("#f8fbfa"), scale: 3 })) {
   const canvas = await capture(element);
   const url = canvas.toDataURL("image/png");
   const link = document.createElement("a");

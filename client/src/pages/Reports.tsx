@@ -5,6 +5,7 @@ import QueryStateError from "@/components/QueryStateError";
 import { arabicNumber, asNumber, formatYear, periodLabel } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
 import { PDF_CAPTURE_ROOT_ATTRIBUTE, preparePdfCaptureDocument } from "@/lib/pdfCapture";
+import { getPdfCaptureOptions } from "@/lib/dashboardPdf";
 import { toExcelReportRows } from "@/lib/reportExport";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -49,10 +50,8 @@ export default function Reports() {
     }
     try {
       const canvas = await html2canvas(reportRef.current, {
+        ...getPdfCaptureOptions("#ffffff"),
         scale: 2,
-        backgroundColor: "#ffffff",
-        useCORS: true,
-        logging: false,
         onclone: preparePdfCaptureDocument,
       });
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
