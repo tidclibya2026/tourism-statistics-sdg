@@ -23,6 +23,7 @@ import {
   supportRequestReplies,
   supportRequests,
   supportNotifications,
+  userPreferences,
   users,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -1029,13 +1030,16 @@ export async function createSupportRequestReply(input: { supportRequestId: numbe
   if (!request) throw new Error("طلب الدعم غير موجود.");
   const result = await db.insert(supportRequestReplies).values(input);
   await db.update(supportRequests).set({ status: "in_progress" }).where(eq(supportRequests.id, input.supportRequestId));
-  await db.insert(supportNotifications).values({
-    userId: request.userId,
-    supportRequestId: input.supportRequestId,
-    type: "reply",
-    title: "رد جديد من إدارة الدعم",
-    message: `وصل رد جديد بخصوص طلب الدعم: ${request.subject}`.slice(0, 600),
-  });
+  const preferences = await getUserPreferences(request.userId);
+  if (preferences.notifySupportReplies) {
+    await db.insert(supportNotifications).values({
+      userId: request.userId,
+      supportRequestId: input.supportRequestId,
+      type: "reply",
+      title: "رد جديد من إدارة الدعم",
+      message: `وصل رد جديد بخصوص طلب الدعم: ${request.subject}`.slice(0, 600),
+    });
+  }
   return { id: Number(result[0].insertId) };
 }
 
@@ -1077,13 +1081,16 @@ export async function updateSupportRequestStatus(id: number, status: "open" | "i
   if (!request) throw new Error("طلب الدعم غير موجود.");
   await db.update(supportRequests).set({ status }).where(eq(supportRequests.id, id));
   const labels = { open: "جديدة", in_progress: "قيد المتابعة", resolved: "تم الحل", closed: "أغلقت" };
-  await db.insert(supportNotifications).values({
-    userId: request.userId,
-    supportRequestId: id,
-    type: "status",
-    title: "تحديث حالة طلب الدعم",
-    message: `أصبحت حالة طلب «${request.subject}»: ${labels[status]}`.slice(0, 600),
-  });
+  const preferences = await getUserPreferences(request.userId);
+  if (preferences.notifySupportStatus) {
+    await db.insert(supportNotifications).values({
+      userId: request.userId,
+      supportRequestId: id,
+      type: "status",
+      title: "تحديث حالة طلب الدعم",
+      message: `أصبحت حالة طلب «${request.subject}»: ${labels[status]}`.slice(0, 600),
+    });
+  }
   return { success: true };
 }
 
@@ -1105,6 +1112,30 @@ export async function markSupportNotificationsRead(userId: number, ids: number[]
   if (!db) throw new Error("قاعدة البيانات غير متاحة.");
   await db.update(supportNotifications).set({ readAt: new Date() }).where(and(eq(supportNotifications.userId, userId), inArray(supportNotifications.id, ids)));
   return { success: true };
+}
+
+export async function getUserPreferences(userId: number) {
+  const db = await getDb();
+  const defaults = { notifySupportReplies: true, notifySupportStatus: true };
+  if (!db) return defaults;
+  const rows = await db.select().from(userPreferences).where(eq(userPreferences.userId, userId)).limit(1);
+  const preference = rows[0];
+  return preference ? { notifySupportReplies: preference.notifySupportReplies === 1, notifySupportStatus: preference.notifySupportStatus === 1 } : defaults;
+}
+
+export async function updateUserPreferences(userId: number, input: { notifySupportReplies: boolean; notifySupportStatus: boolean }) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.insert(userPreferences).values({ userId, notifySupportReplies: input.notifySupportReplies ? 1 : 0, notifySupportStatus: input.notifySupportStatus ? 1 : 0 })
+    .onDuplicateKeyUpdate({ set: { notifySupportReplies: input.notifySupportReplies ? 1 : 0, notifySupportStatus: input.notifySupportStatus ? 1 : 0, updatedAt: new Date() } });
+  return getUserPreferences(userId);
+}
+
+export async function updateUserDisplayName(userId: number, name: string) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.update(users).set({ name }).where(eq(users.id, userId));
+  return { success: true, name };
 }
 
 export async function upsertHelpContentRating(input: { userId: number; sectionId: string; rating: "helpful" | "not_helpful" }) {

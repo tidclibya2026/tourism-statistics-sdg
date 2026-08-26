@@ -23,6 +23,19 @@ export const users = mysqlTable("users", {
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
+/** Per-user preferences for in-app support notifications. */
+export const userPreferences = mysqlTable(
+  "userPreferences",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    notifySupportReplies: int("notifySupportReplies").default(1).notNull(),
+    notifySupportStatus: int("notifySupportStatus").default(1).notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("user_preferences_user_unique").on(table.userId)],
+);
+
 /** Explicit allow-list for administrators who may operate sensitive controls. */
 export const administrativeMembers = mysqlTable(
   "administrativeMembers",

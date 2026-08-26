@@ -5,6 +5,7 @@ import PublicCityLayout from "@/components/PublicCityLayout";
 import { trpc } from "@/lib/trpc";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { AccessibilityProvider } from "./contexts/AccessibilityContext";
 import Compare from "./pages/Compare";
 import DataEntry from "./pages/DataEntry";
 import Forecast from "./pages/Forecast";
@@ -23,6 +24,7 @@ import Users from "./pages/Users";
 import SecurityReview from "./pages/SecurityReview";
 import HelpSupport from "./pages/HelpSupport";
 import SupportAdmin from "./pages/SupportAdmin";
+import Profile from "./pages/Profile";
 import { Route, Switch } from "wouter";
 
 function ProtectedPage({ children }: { children: React.ReactNode }) { return <DashboardLayout>{children}</DashboardLayout>; }
@@ -51,11 +53,12 @@ function Router() {
     <Route path="/security"><ProtectedPage><SecurityReview /></ProtectedPage></Route>
     <Route path="/help"><ProtectedPage><HelpSupport /></ProtectedPage></Route>
     <Route path="/support-admin"><ProtectedPage><SupportAdmin /></ProtectedPage></Route>
+    <Route path="/profile"><ProtectedPage><Profile /></ProtectedPage></Route>
     <Route path="/404" component={NotFound} />
     <Route component={NotFound} />
   </Switch>;
 }
 
 export default function App() {
-  return <ErrorBoundary><ThemeProvider defaultTheme="light"><TooltipProvider><Toaster richColors position="top-center" /><Router /></TooltipProvider></ThemeProvider></ErrorBoundary>;
+  return <ErrorBoundary><AccessibilityProvider><ThemeProvider defaultTheme="light" switchable><TooltipProvider><Toaster richColors position="top-center" /><Router /></TooltipProvider></ThemeProvider></AccessibilityProvider></ErrorBoundary>;
 }

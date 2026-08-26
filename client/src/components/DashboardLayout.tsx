@@ -21,6 +21,7 @@ import { downloadUserGuidePdf } from "@/lib/helpPdf";
 import { type HelpRole } from "@/lib/helpContent";
 import { OnboardingTour, useOnboardingPrompt } from "./OnboardingTour";
 import { SupportNotificationBell } from "./SupportNotificationBell";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
@@ -40,6 +41,9 @@ import {
   CircleHelp,
   Download,
   MessagesSquare,
+  Moon,
+  Sun,
+  UserRound,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -61,6 +65,7 @@ const navigation: { icon: typeof LayoutDashboard; label: string; path: string; a
   { icon: Settings2, label: "المستخدمون والصلاحيات", path: "/users", access: ["admin"] },
   { icon: ShieldCheck, label: "مراجعة الأمان", path: "/security", access: ["admin"] },
   { icon: MessagesSquare, label: "إدارة الدعم", path: "/support-admin", access: ["admin"] },
+  { icon: UserRound, label: "الملف الشخصي والإعدادات", path: "/profile", access: ["admin", "analyst", "viewer"] },
   { icon: CircleHelp, label: "المساعدة والدعم", path: "/help", access: ["admin", "analyst", "viewer"] },
 ];
 
@@ -70,6 +75,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const capabilities = trpc.auth.administrativeCapabilities.useQuery(undefined, { enabled: user?.role === "admin", retry: false, refetchOnWindowFocus: false });
   const { open: tourOpen, setOpen: setTourOpen } = useOnboardingPrompt((user?.role ?? "viewer") as HelpRole);
   const [downloadingGuide, setDownloadingGuide] = useState(false);
+  const { theme, toggleTheme } = useTheme();
   useEffect(() => {
     const openTour = () => setTourOpen(true);
     window.addEventListener("tourism-open-onboarding", openTour);
@@ -172,6 +178,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div className="flex items-center gap-1.5 md:gap-2">
             <Button variant="ghost" size="sm" className="hidden h-9 text-[#0f5c58] hover:bg-[#e4f0ed] md:flex" onClick={() => setTourOpen(true)}><Sparkles className="ml-1.5 h-4 w-4" />جولة</Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-[#0f5c58] hover:bg-[#e4f0ed]" onClick={toggleTheme} aria-label={theme === "dark" ? "تفعيل الوضع النهاري" : "تفعيل الوضع الليلي"}>{theme === "dark" ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}</Button>
             <SupportNotificationBell onOpenHelp={() => setLocation("/help")} />
             <Button variant="ghost" size="icon" className="h-9 w-9 text-[#0f5c58] hover:bg-[#e4f0ed]" onClick={() => setLocation("/help")} aria-label="المساعدة والدعم"><CircleHelp className="h-4.5 w-4.5" /></Button>
             <Button variant="ghost" size="icon" className="h-9 w-9 text-[#0f5c58] hover:bg-[#e4f0ed]" onClick={downloadGuide} disabled={downloadingGuide} aria-label="تنزيل دليل المستخدم PDF"><Download className="h-4.5 w-4.5" /></Button>

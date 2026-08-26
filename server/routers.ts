@@ -107,6 +107,11 @@ export const appRouter = router({
       return { success: true } as const;
     }),
   }),
+  profile: router({
+    preferences: protectedProcedure.query(({ ctx }) => db.getUserPreferences(ctx.user.id)),
+    updatePreferences: protectedProcedure.input(z.object({ notifySupportReplies: z.boolean(), notifySupportStatus: z.boolean() })).mutation(({ ctx, input }) => db.updateUserPreferences(ctx.user.id, input)),
+    updateDisplayName: protectedProcedure.input(z.object({ name: z.string().trim().min(2, "الاسم الظاهر قصير جداً.").max(120) })).mutation(({ ctx, input }) => db.updateUserDisplayName(ctx.user.id, input.name)),
+  }),
   dashboard: router({
     summary: protectedProcedure.input(z.object({
       year: z.number().int().min(2000).max(2100).optional(),
