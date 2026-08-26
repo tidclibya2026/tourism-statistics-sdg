@@ -962,6 +962,7 @@ export async function getDashboardData(filters?: { year?: number; axis?: "اقت
       indicatorsWithTargets: targetPerformance.length,
       achievedTargets: targetPerformance.filter((item) => item.status === "achieved").length,
     },
+    indicators: allIndicators.map((indicator) => ({ id: indicator.id, name: indicator.name, unit: indicator.unit })),
     axisDistribution,
     trendByYear,
     coverageByYear,

@@ -6,12 +6,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mutate = vi.fn();
 const dashboardData = {
   summary: { totalIndicators: 2, publishedIndicators: 2, approvedObservations: 4, latestYear: 2025, indicatorsWithTargets: 1, achievedTargets: 1 },
+  indicators: [{ id: 1, name: "الوافدون", unit: "عدد" }, { id: 2, name: "ليالي الإقامة", unit: "ليلة" }],
   availableYears: [2025],
   axisDistribution: [{ axis: "اقتصادي", count: 2 }, { axis: "اجتماعي", count: 0 }, { axis: "بيئي", count: 0 }],
   trendByYear: [{ year: 2025, observations: 4 }],
   coverageByYear: [{ year: 2025, indicators: 2 }],
   axisCoverageByYear: [{ year: 2025, اقتصادي: 4, اجتماعي: 0, بيئي: 0 }],
   targetPerformance: [{ indicatorId: 1, name: "الوافدون", code: "ARR", axis: "اقتصادي", unit: "عدد", year: 2025, actual: 100, target: 100, variance: 0, attainment: 100, status: "achieved" as const }],
+  latest: [{ indicator: { id: 1, name: "الوافدون", unit: "عدد" }, observation: { year: 2025, value: "100" } }, { indicator: { id: 2, name: "ليالي الإقامة", unit: "ليلة" }, observation: { year: 2025, value: "250" } }],
   recent: [],
   indicatorGrowth: [{ indicatorId: 1, name: "الوافدون", unit: "عدد", firstYear: 2024, lastYear: 2025, growthPercent: 25 }],
 };
@@ -54,6 +56,21 @@ describe("dashboard export and AI summary UI", () => {
     fireEvent.click(screen.getByText("SDG 8"));
     fireEvent.click(screen.getByRole("button", { name: "توليد التقرير النصي" }));
     expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ year: undefined, sdgReference: "SDG 8" }));
+  });
+
+  it("يعرض مؤشرين مختلفين جنباً إلى جنب مع وحدات القياس", () => {
+    render(<Home />);
+    const first = screen.getAllByRole("combobox")[5];
+    fireEvent.pointerDown(first, { button: 0, pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("option", { name: "الوافدون" }));
+    const second = screen.getAllByRole("combobox")[6];
+    fireEvent.pointerDown(second, { button: 0, pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("option", { name: "ليالي الإقامة" }));
+    expect(screen.getByText("مقارنة المؤشرات")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "لقطة صورة" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "لقطة PDF" })).toBeTruthy();
+    expect(screen.getByText("الوحدة: عدد · السنة: 2025")).toBeTruthy();
+    expect(screen.getByText("الوحدة: ليلة · السنة: 2025")).toBeTruthy();
   });
 
   it("يعرض مؤشرات الملخص والنطاق المعتمد ويدعم تبديل محور العرض", () => {
