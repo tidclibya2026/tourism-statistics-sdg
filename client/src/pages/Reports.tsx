@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import QueryStateError from "@/components/QueryStateError";
 import { arabicNumber, asNumber, formatYear, periodLabel } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
+import { PDF_CAPTURE_ROOT_ATTRIBUTE, preparePdfCaptureDocument } from "@/lib/pdfCapture";
 import { toExcelReportRows } from "@/lib/reportExport";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -47,7 +48,13 @@ export default function Reports() {
       return;
     }
     try {
-      const canvas = await html2canvas(reportRef.current, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        logging: false,
+        onclone: preparePdfCaptureDocument,
+      });
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const imageHeight = canvas.height * pageWidth / canvas.width;
@@ -64,7 +71,8 @@ export default function Reports() {
         remaining -= pageHeight;
       }
       pdf.save(`تقرير-المؤشرات-${yearFrom}-${yearTo}.pdf`);
-    } catch {
+    } catch (error) {
+      console.error("Report PDF export failed", error);
       toast.error("تعذر إنشاء ملف PDF في الوقت الحالي.");
     }
   }
@@ -89,7 +97,7 @@ export default function Reports() {
         </div>
       </section>
 
-      <div ref={reportRef} className="table-shell bg-white">
+      <div ref={reportRef} {...{ [PDF_CAPTURE_ROOT_ATTRIBUTE]: "" }} className="table-shell bg-white">
         <div className="border-b border-[#e8efec] p-5">
           <div className="flex items-start justify-between">
             <div>
