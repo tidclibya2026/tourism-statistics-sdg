@@ -1,0 +1,25 @@
+import { useAuth } from "@/_core/hooks/useAuth";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { downloadUserGuidePdf } from "@/lib/helpPdf";
+import { filterHelpSections, roleHelpLabels } from "@/lib/helpContent";
+import { BookOpenText, ChevronDown, CircleHelp, Download, Search, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+
+export default function HelpSupport() {
+  const { user } = useAuth();
+  const role = user?.role ?? "viewer";
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<string | null>("start");
+  const [downloading, setDownloading] = useState(false);
+  const sections = useMemo(() => filterHelpSections(query, role), [query, role]);
+  async function download() {
+    setDownloading(true);
+    try { await downloadUserGuidePdf(role); toast.success("بدأ تنزيل دليل المستخدم بصيغة PDF."); }
+    catch { toast.error("تعذر إنشاء PDF للدليل في الوقت الحالي."); }
+    finally { setDownloading(false); }
+  }
+  return <div className="space-y-6"><section className="rounded-[2rem] bg-[linear-gradient(135deg,#0f5c58,#174943)] p-6 text-white shadow-[0_20px_55px_rgba(12,76,73,.18)] md:p-8"><div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-white/15"><CircleHelp className="h-6 w-6" /></span><div><p className="text-xs font-bold tracking-[.14em] text-amber-200">مركز المعرفة</p><h1 className="mt-1 text-2xl font-bold">المساعدة والدعم</h1></div></div><p className="mt-4 max-w-2xl text-sm leading-7 text-teal-50/90">ابحث في دليل التشغيل، واطلع على خطوات الدور الحالي، أو ابدأ الجولة التعريفية داخل المنصة.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" onClick={() => window.dispatchEvent(new Event("tourism-open-onboarding"))}><Sparkles className="ml-1.5 h-4 w-4" />ابدأ الجولة</Button><Button className="bg-[#d9a357] text-[#173f3d] hover:bg-[#edb96d]" onClick={download} disabled={downloading}><Download className="ml-1.5 h-4 w-4" />{downloading ? "جارٍ تجهيز PDF…" : "تنزيل الدليل PDF"}</Button></div></div></section><section className="section-card p-4"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><h2 className="font-bold text-[#173f3d]">دليل مخصص لدورك</h2><p className="mt-1 text-sm text-slate-500">الدور الحالي: <Badge className="border-0 bg-[#e6f1ee] text-[#0f5c58]">{roleHelpLabels[role]}</Badge></p></div><div className="relative w-full md:max-w-md"><Search className="pointer-events-none absolute right-3 top-3.5 h-4 w-4 text-slate-400" /><Input value={query} onChange={(event) => setQuery(event.target.value)} className="pr-9" placeholder="ابحث: اعتماد، Excel، مدينة، مصدر، صلاحيات…" aria-label="البحث في دليل المساعدة" /></div></div></section><section className="space-y-3">{sections.length ? sections.map((section) => { const isOpen = expanded === section.id; return <article key={section.id} className="overflow-hidden rounded-2xl border border-[#dce8e4] bg-white shadow-sm"><button className="flex w-full items-center justify-between gap-4 p-4 text-right" onClick={() => setExpanded(isOpen ? null : section.id)} aria-expanded={isOpen}><div className="flex items-start gap-3"><span className="mt-0.5 grid h-9 w-9 place-items-center rounded-xl bg-[#e9f4f1] text-[#0f766e]"><BookOpenText className="h-4 w-4" /></span><div><h2 className="font-bold text-[#173f3d]">{section.title}</h2><p className="mt-1 text-sm leading-6 text-slate-600">{section.summary}</p></div></div><ChevronDown className={`h-5 w-5 shrink-0 text-[#0f766e] transition-transform ${isOpen ? "rotate-180" : ""}`} /></button>{isOpen && <div className="border-t border-[#e8efec] bg-[#f9fcfa] px-5 py-4"><ol className="space-y-2 pr-5 text-sm leading-7 text-slate-700">{section.steps.map((step) => <li key={step}>{step}</li>)}</ol><div className="mt-4 flex flex-wrap gap-1.5">{section.keywords.map((keyword) => <Badge key={keyword} variant="outline" className="border-[#cfe3dc] bg-white text-xs text-[#58736d]">{keyword}</Badge>)}</div></div>}</article>; }) : <div className="rounded-2xl border border-dashed border-[#c8ded7] bg-white p-10 text-center"><Search className="mx-auto h-7 w-7 text-[#91b7ad]" /><h2 className="mt-3 font-bold text-[#173f3d]">لا توجد نتيجة مطابقة</h2><p className="mt-2 text-sm text-slate-500">جرّب كلمة أبسط مثل: مصدر، اعتماد، مدينة، Excel أو صلاحيات.</p></div>}</section></div>;
+}

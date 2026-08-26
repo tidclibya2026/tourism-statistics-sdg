@@ -17,6 +17,10 @@ import {
 import { startLogin } from "@/const";
 import { roleLabels } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
+import { downloadUserGuidePdf } from "@/lib/helpPdf";
+import { type HelpRole } from "@/lib/helpContent";
+import { OnboardingTour, useOnboardingPrompt } from "./OnboardingTour";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
   Database,
@@ -32,6 +36,8 @@ import {
   MapPinned,
   ClipboardPenLine,
   Send,
+  CircleHelp,
+  Download,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -52,12 +58,20 @@ const navigation: { icon: typeof LayoutDashboard; label: string; path: string; a
   { icon: Send, label: "مركز النشر الموحد", path: "/publication", access: ["admin", "analyst", "viewer"] },
   { icon: Settings2, label: "المستخدمون والصلاحيات", path: "/users", access: ["admin"] },
   { icon: ShieldCheck, label: "مراجعة الأمان", path: "/security", access: ["admin"] },
+  { icon: CircleHelp, label: "المساعدة والدعم", path: "/help", access: ["admin", "analyst", "viewer"] },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { loading, user, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const capabilities = trpc.auth.administrativeCapabilities.useQuery(undefined, { enabled: user?.role === "admin", retry: false, refetchOnWindowFocus: false });
+  const { open: tourOpen, setOpen: setTourOpen } = useOnboardingPrompt((user?.role ?? "viewer") as HelpRole);
+  const [downloadingGuide, setDownloadingGuide] = useState(false);
+  useEffect(() => {
+    const openTour = () => setTourOpen(true);
+    window.addEventListener("tourism-open-onboarding", openTour);
+    return () => window.removeEventListener("tourism-open-onboarding", openTour);
+  }, [setTourOpen]);
 
   if (loading) return <DashboardLayoutSkeleton />;
 
@@ -82,7 +96,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const menuItems = navigation
     .filter((item) => item.access.includes(user.role))
     .filter((item) => item.path !== "/security" || capabilities.data?.canReviewSecurity === true);
+  const currentHelpRole = user.role as HelpRole;
   const activeTitle = menuItems.find((item) => item.path === location)?.label ?? "منصة المؤشرات";
+  async function downloadGuide() {
+    setDownloadingGuide(true);
+    try { await downloadUserGuidePdf(currentHelpRole); }
+    finally { setDownloadingGuide(false); }
+  }
 
   return (
     <SidebarProvider defaultOpen>
@@ -138,6 +158,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </Sidebar>
 
       <SidebarInset className="min-w-0 bg-[#f4f7f5]" dir="rtl">
+        <OnboardingTour role={currentHelpRole} open={tourOpen} onOpenChange={setTourOpen} />
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#dce8e4] bg-[#f9fbfa]/92 px-4 backdrop-blur md:px-7">
           <div className="flex items-center gap-3">
             <SidebarTrigger className="rounded-lg text-[#0f5c58] hover:bg-[#e4f0ed]" />
@@ -146,9 +167,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <h2 className="text-sm font-bold text-[#153c39]">{activeTitle}</h2>
             </div>
           </div>
-          <div className="hidden items-center gap-2 md:flex">
+          <div className="flex items-center gap-1.5 md:gap-2">
+            <Button variant="ghost" size="sm" className="hidden h-9 text-[#0f5c58] hover:bg-[#e4f0ed] md:flex" onClick={() => setTourOpen(true)}><Sparkles className="ml-1.5 h-4 w-4" />جولة</Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-[#0f5c58] hover:bg-[#e4f0ed]" onClick={() => setLocation("/help")} aria-label="المساعدة والدعم"><CircleHelp className="h-4.5 w-4.5" /></Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-[#0f5c58] hover:bg-[#e4f0ed]" onClick={downloadGuide} disabled={downloadingGuide} aria-label="تنزيل دليل المستخدم PDF"><Download className="h-4.5 w-4.5" /></Button>
+            <div className="hidden items-center gap-2 md:flex">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
             <span className="text-xs text-slate-500">النظام يعمل</span>
+            </div>
           </div>
         </header>
         <main className="min-h-[calc(100vh-4rem)] p-4 md:p-7">{children}</main>
