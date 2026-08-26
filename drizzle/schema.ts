@@ -101,6 +101,44 @@ export const dependencyReviewSchedules = mysqlTable(
   ],
 );
 
+/** Questions and issue reports submitted from the in-product help center. */
+export const supportRequests = mysqlTable(
+  "supportRequests",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    roleSnapshot: mysqlEnum("roleSnapshot", ["admin", "analyst", "viewer"]).notNull(),
+    category: mysqlEnum("category", ["question", "issue", "suggestion"]).notNull(),
+    subject: varchar("subject", { length: 180 }).notNull(),
+    message: text("message").notNull(),
+    status: mysqlEnum("status", ["open", "in_progress", "resolved", "closed"]).default("open").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index("support_requests_status_idx").on(table.status),
+    index("support_requests_user_idx").on(table.userId),
+    index("support_requests_created_idx").on(table.createdAt),
+  ],
+);
+
+/** One helpful/not-helpful signal per signed-in user and help section. */
+export const helpContentRatings = mysqlTable(
+  "helpContentRatings",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    sectionId: varchar("sectionId", { length: 80 }).notNull(),
+    rating: mysqlEnum("rating", ["helpful", "not_helpful"]).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("help_ratings_user_section_unique").on(table.userId, table.sectionId),
+    index("help_ratings_section_idx").on(table.sectionId),
+  ],
+);
+
 export const indicators = mysqlTable(
   "indicators",
   {

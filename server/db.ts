@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   administrativeAccessEvents,
   administrativeMembers,
   dependencyReviewRuns,
   dependencyReviewSchedules,
+  helpContentRatings,
   type InsertIndicator,
   type InsertIndicatorObservation,
   type InsertSpatialArea,
@@ -18,6 +19,7 @@ import {
   spatialAreas,
   spatialObservationReviewEvents,
   spatialObservations,
+  supportRequests,
   users,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -956,4 +958,72 @@ export async function getDashboardData(filters?: { year?: number; axis?: "اقت
     availableYears,
     targetPerformance,
   };
+}
+
+export async function createSupportRequest(input: {
+  userId: number;
+  roleSnapshot: "admin" | "analyst" | "viewer";
+  category: "question" | "issue" | "suggestion";
+  subject: string;
+  message: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  const result = await db.insert(supportRequests).values(input);
+  return { id: Number(result[0].insertId), status: "open" as const };
+}
+
+export async function listMySupportRequests(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(supportRequests).where(eq(supportRequests.userId, userId)).orderBy(desc(supportRequests.createdAt)).limit(12);
+}
+
+export async function listSupportRequests() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: supportRequests.id,
+    roleSnapshot: supportRequests.roleSnapshot,
+    category: supportRequests.category,
+    subject: supportRequests.subject,
+    message: supportRequests.message,
+    status: supportRequests.status,
+    createdAt: supportRequests.createdAt,
+    updatedAt: supportRequests.updatedAt,
+    submitterName: users.name,
+    submitterEmail: users.email,
+  }).from(supportRequests).leftJoin(users, eq(supportRequests.userId, users.id)).orderBy(desc(supportRequests.createdAt)).limit(100);
+}
+
+export async function updateSupportRequestStatus(id: number, status: "open" | "in_progress" | "resolved" | "closed") {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.update(supportRequests).set({ status }).where(eq(supportRequests.id, id));
+  return { success: true };
+}
+
+export async function upsertHelpContentRating(input: { userId: number; sectionId: string; rating: "helpful" | "not_helpful" }) {
+  const db = await getDb();
+  if (!db) throw new Error("قاعدة البيانات غير متاحة.");
+  await db.insert(helpContentRatings).values(input).onDuplicateKeyUpdate({ set: { rating: input.rating, updatedAt: new Date() } });
+  return { success: true };
+}
+
+export async function getMyHelpContentRatings(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ sectionId: helpContentRatings.sectionId, rating: helpContentRatings.rating })
+    .from(helpContentRatings).where(eq(helpContentRatings.userId, userId));
+}
+
+export async function getHelpContentRatingSummary() {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    sectionId: helpContentRatings.sectionId,
+    helpful: sql<number>`sum(case when ${helpContentRatings.rating} = 'helpful' then 1 else 0 end)`,
+    notHelpful: sql<number>`sum(case when ${helpContentRatings.rating} = 'not_helpful' then 1 else 0 end)`,
+  }).from(helpContentRatings).groupBy(helpContentRatings.sectionId);
+  return rows.map((row) => ({ ...row, helpful: Number(row.helpful), notHelpful: Number(row.notHelpful) }));
 }

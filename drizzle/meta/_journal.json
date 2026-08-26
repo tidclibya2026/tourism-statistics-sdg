@@ -71,6 +71,13 @@
       "when": 1787701370217,
       "tag": "0009_noisy_bloodscream",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1787703982954,
+      "tag": "0010_easy_invaders",
+      "breakpoints": true
     }
   ]
 }

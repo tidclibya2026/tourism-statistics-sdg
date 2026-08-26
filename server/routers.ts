@@ -362,6 +362,30 @@ export const appRouter = router({
       }
     }),
   }),
+  support: router({
+    submit: protectedProcedure.input(z.object({
+      category: z.enum(["question", "issue", "suggestion"]),
+      subject: z.string().trim().min(4, "اكتب عنواناً من أربع خانات على الأقل.").max(180),
+      message: z.string().trim().min(10, "اكتب تفاصيل الاستفسار أو المشكلة.").max(5000),
+    })).mutation(({ ctx, input }) => db.createSupportRequest({ ...input, userId: ctx.user.id, roleSnapshot: ctx.user.role })),
+    mine: protectedProcedure.query(({ ctx }) => db.listMySupportRequests(ctx.user.id)),
+    ratings: protectedProcedure.query(async ({ ctx }) => ({
+      mine: await db.getMyHelpContentRatings(ctx.user.id),
+      summary: await db.getHelpContentRatingSummary(),
+    })),
+    rate: protectedProcedure.input(z.object({
+      sectionId: z.string().trim().min(1).max(80).regex(/^[a-z-]+$/),
+      rating: z.enum(["helpful", "not_helpful"]),
+    })).mutation(({ ctx, input }) => db.upsertHelpContentRating({ ...input, userId: ctx.user.id })),
+    inbox: adminProcedure.query(async () => ({
+      requests: await db.listSupportRequests(),
+      ratingSummary: await db.getHelpContentRatingSummary(),
+    })),
+    updateStatus: adminProcedure.input(z.object({
+      id: z.number().int().positive(),
+      status: z.enum(["open", "in_progress", "resolved", "closed"]),
+    })).mutation(({ input }) => db.updateSupportRequestStatus(input.id, input.status)),
+  }),
   imports: router({
     history: protectedProcedure.query(() => db.listImportJobs()),
     process: analystProcedure.input(z.object({
