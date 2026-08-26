@@ -13,6 +13,7 @@ const dashboardData = {
   axisCoverageByYear: [{ year: 2025, اقتصادي: 4, اجتماعي: 0, بيئي: 0 }],
   targetPerformance: [{ indicatorId: 1, name: "الوافدون", code: "ARR", axis: "اقتصادي", unit: "عدد", year: 2025, actual: 100, target: 100, variance: 0, attainment: 100, status: "achieved" as const }],
   recent: [],
+  indicatorGrowth: [{ indicatorId: 1, name: "الوافدون", unit: "عدد", firstYear: 2024, lastYear: 2025, growthPercent: 25 }],
 };
 
 vi.mock("@/lib/trpc", () => ({
@@ -21,6 +22,7 @@ vi.mock("@/lib/trpc", () => ({
       summary: { useQuery: () => ({ data: dashboardData, isLoading: false, isError: false, refetch: vi.fn() }) },
       narrative: { useMutation: () => ({ data: { text: "## الملخص التنفيذي\n\nتم تحقيق المستهدف." }, mutate, isPending: false, isError: false }) },
     },
+    spatial: { overview: { useQuery: () => ({ data: { availableYears: [2025], observations: [{ areaName: "طرابلس", areaType: "city", year: 2025 }] }, isLoading: false, isError: false }) } },
   },
 }));
 
@@ -57,12 +59,15 @@ describe("dashboard export and AI summary UI", () => {
   it("يعرض مؤشرات الملخص والنطاق المعتمد ويدعم تبديل محور العرض", () => {
     render(<Home />);
     expect(screen.getByText("القياسات المعتمدة")).toBeTruthy();
+    expect(screen.getByText("أكثر المناطق نشاطاً")).toBeTruthy();
+    expect(screen.getByText("أعلى المؤشرات نمواً")).toBeTruthy();
+    expect(screen.getByText("طرابلس")).toBeTruthy();
     expect(screen.getByText("2025")).toBeTruthy();
     expect(screen.queryByText("2.025")).toBeNull();
     const axisFilter = screen.getAllByRole("combobox")[1];
     fireEvent.pointerDown(axisFilter, { button: 0, pointerType: "mouse" });
     fireEvent.click(screen.getByRole("option", { name: "اقتصادي" }));
     expect(screen.getByText("نسبة تحقيق المستهدفات")).toBeTruthy();
-    expect(screen.getByText("الوافدون")).toBeTruthy();
+    expect(screen.getAllByText("الوافدون").length).toBeGreaterThanOrEqual(1);
   });
 });

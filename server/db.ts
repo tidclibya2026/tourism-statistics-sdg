@@ -943,6 +943,15 @@ export async function getDashboardData(filters?: { year?: number; axis?: "اقت
     بيئي: scopedApproved.filter((row) => row.observation.year === year && row.observation.period === "annual" && row.indicator.axis === "بيئي").length,
   }));
   const targetPerformance = buildTargetPerformance(scopedApproved);
+  const indicatorGrowth = allIndicators.map((indicator) => {
+    const series = scopedApproved.filter((row) => row.observation.indicatorId === indicator.id && row.observation.period === "annual").sort((left, right) => left.observation.year - right.observation.year);
+    const first = series[0];
+    const last = series.at(-1);
+    const firstValue = first ? Number(first.observation.value) : Number.NaN;
+    const lastValue = last ? Number(last.observation.value) : Number.NaN;
+    const growthPercent = first && last && series.length > 1 && Number.isFinite(firstValue) && Number.isFinite(lastValue) && firstValue !== 0 ? ((lastValue - firstValue) / Math.abs(firstValue)) * 100 : null;
+    return growthPercent === null || !first || !last ? null : { indicatorId: indicator.id, name: indicator.name, unit: indicator.unit, firstYear: first.observation.year, lastYear: last.observation.year, growthPercent };
+  }).filter((item): item is NonNullable<typeof item> => item !== null).sort((left, right) => right.growthPercent - left.growthPercent).slice(0, 5);
 
   return {
     summary: {
@@ -961,6 +970,7 @@ export async function getDashboardData(filters?: { year?: number; axis?: "اقت
     recent: (filters?.year ? approved.filter((row) => row.observation.year === filters.year) : approved).slice(0, 8),
     availableYears,
     targetPerformance,
+    indicatorGrowth,
   };
 }
 
