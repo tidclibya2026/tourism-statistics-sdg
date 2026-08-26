@@ -1244,7 +1244,9 @@ function DashboardActivityMap({
   year?: number;
 }) {
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [boundaryReady, setBoundaryReady] = useState(false);
   const markerRefs = useRef<google.maps.Marker[]>([]);
+  const boundaryLayerRef = useRef<google.maps.Data | null>(null);
   const geocodeCache = useRef<Map<string, google.maps.LatLngLiteral>>(
     new Map()
   );
@@ -1308,6 +1310,47 @@ function DashboardActivityMap({
       ) as google.maps.Marker[];
     };
   }, [areas, map]);
+  useEffect(() => {
+    if (!map || !window.google) return;
+    let cancelled = false;
+    const layer = new window.google.maps.Data({ map });
+    boundaryLayerRef.current = layer;
+    layer.setStyle({
+      fillColor: "#0f766e",
+      fillOpacity: 0.12,
+      strokeColor: "#0f766e",
+      strokeOpacity: 0.72,
+      strokeWeight: 1.5,
+    });
+    layer.addListener("click", (event: google.maps.Data.MouseEvent) => {
+      const name = event.feature.getProperty("MahallaA_1") || event.feature.getProperty("MahallaAre") || "بلدية";
+      const key = event.feature.getProperty("MahallaKey");
+      const info = new window.google.maps.InfoWindow({
+        content: `<div dir="rtl" style="font-family:Arial;padding:6px 4px;min-width:170px"><strong>${String(name)}</strong><br/><small>طبقة البلديات · الرمز: ${String(key ?? "غير متوفر")}</small></div>`,
+        position: event.latLng,
+      });
+      info.open({ map });
+    });
+    fetch("/manus-storage/municipalities-wgs84_11f127be.geojson")
+      .then(response => {
+        if (!response.ok) throw new Error("boundary fetch failed");
+        return response.json();
+      })
+      .then(geojson => {
+        if (cancelled) return;
+        layer.addGeoJson(geojson);
+        setBoundaryReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setBoundaryReady(false);
+      });
+    return () => {
+      cancelled = true;
+      layer.setMap(null);
+      boundaryLayerRef.current = null;
+      setBoundaryReady(false);
+    };
+  }, [map]);
   return (
     <section className="overflow-hidden rounded-2xl border border-[#cfe2db] bg-white shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-[#e4efeb] px-5 py-4">
@@ -1318,7 +1361,7 @@ function DashboardActivityMap({
             {year ? formatYear(year) : "أحدث سنة متاحة"}؛ انقر على العلامة لعرض
             التفاصيل.
           </p>
-          <p className="mt-2 text-[11px] leading-5 text-amber-700">طبقة الحدود الإدارية الرسمية غير مفعلة حالياً؛ ستظهر فقط بعد اعتماد ملف هندسي موثق من المركز.</p>
+          <p className={`mt-2 text-[11px] leading-5 ${boundaryReady ? "text-emerald-700" : "text-amber-700"}`}>{boundaryReady ? "طبقة حدود البلديات المرفقة محملة بعد تحويلها إلى WGS 84؛ وهي قيد الاعتماد الإداري. انقر على أي بلدية للتفاصيل." : "جاري تحميل طبقة حدود البلديات المرفقة؛ ستظهر بعد اكتمال التحقق من الملف."}</p>
         </div>
         <MapPinned className="h-5 w-5 text-[#b47730]" />
       </div>
