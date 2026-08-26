@@ -1086,8 +1086,9 @@ export async function getHelpContentRatingSummary() {
   if (!db) return [];
   const rows = await db.select({
     sectionId: helpContentRatings.sectionId,
+    role: users.role,
     helpful: sql<number>`sum(case when ${helpContentRatings.rating} = 'helpful' then 1 else 0 end)`,
     notHelpful: sql<number>`sum(case when ${helpContentRatings.rating} = 'not_helpful' then 1 else 0 end)`,
-  }).from(helpContentRatings).groupBy(helpContentRatings.sectionId);
-  return rows.map((row) => ({ ...row, helpful: Number(row.helpful), notHelpful: Number(row.notHelpful) }));
+  }).from(helpContentRatings).leftJoin(users, eq(helpContentRatings.userId, users.id)).groupBy(helpContentRatings.sectionId, users.role);
+  return rows.map((row) => ({ ...row, role: row.role ?? "viewer", helpful: Number(row.helpful), notHelpful: Number(row.notHelpful) }));
 }
