@@ -78,6 +78,7 @@ describe("dashboard export and AI summary UI", () => {
     expect(screen.getByText("القياسات المعتمدة")).toBeTruthy();
     expect(screen.getByText("أكثر المناطق نشاطاً")).toBeTruthy();
     expect(screen.getByText("أعلى المؤشرات نمواً")).toBeTruthy();
+    expect(screen.getByText(/طبقة الحدود الإدارية الرسمية غير مفعلة حالياً/)).toBeTruthy();
     expect(screen.getByText("طرابلس")).toBeTruthy();
     expect(screen.getByText("2025")).toBeTruthy();
     expect(screen.queryByText("2.025")).toBeNull();

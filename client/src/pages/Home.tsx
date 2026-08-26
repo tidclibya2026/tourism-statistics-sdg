@@ -1318,6 +1318,7 @@ function DashboardActivityMap({
             {year ? formatYear(year) : "أحدث سنة متاحة"}؛ انقر على العلامة لعرض
             التفاصيل.
           </p>
+          <p className="mt-2 text-[11px] leading-5 text-amber-700">طبقة الحدود الإدارية الرسمية غير مفعلة حالياً؛ ستظهر فقط بعد اعتماد ملف هندسي موثق من المركز.</p>
         </div>
         <MapPinned className="h-5 w-5 text-[#b47730]" />
       </div>
