@@ -18,6 +18,7 @@ describe("data assistant UI", () => {
     mutate.mockReset();
     mutationOptions.current = null;
     window.localStorage.clear();
+    window.history.replaceState(null, "", "/help");
   });
   afterEach(() => cleanup());
 
@@ -82,6 +83,18 @@ describe("data assistant UI", () => {
     expect(screen.queryByText("سؤال بيئي")).toBeNull();
     expect(screen.getByRole("button", { name: /تصدير نتائج البحث PDF/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /تصدير نتائج البحث Excel/ })).toBeTruthy();
+  });
+
+  it("يعيد ضبط الفلاتر ويصفي حسب المصدر وينسخ رابط الإعدادات", async () => {
+    window.localStorage.setItem("tidc-data-assistant-history-v1", JSON.stringify([{ id: 1, question: "سؤال مصدر أ", answer: "إجابة", context: { axis: "اقتصادي", scope: "national", sources: ["مصدر أ"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }, { id: 2, question: "سؤال مصدر ب", answer: "إجابة", context: { axis: "بيئي", scope: "national", sources: ["مصدر ب"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }]));
+    render(<DataAssistantPanel />);
+    fireEvent.change(screen.getByLabelText("تصفية حسب مصدر البيانات"), { target: { value: "مصدر أ" } });
+    expect(screen.getByText("سؤال مصدر أ")).toBeTruthy();
+    expect(screen.queryByText("سؤال مصدر ب")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "نسخ رابط الفلاتر" }));
+    fireEvent.click(screen.getByRole("button", { name: "إعادة ضبط الفلاتر" }));
+    expect((screen.getByLabelText("تصفية حسب مصدر البيانات") as HTMLSelectElement).value).toBe("");
+    expect((screen.getByLabelText("بحث في سجل المحادثات") as HTMLInputElement).value).toBe("");
   });
 
   it("يعرض السجل ويتيح تصدير الإجابة مع مصادرها بعد نجاح الإجابة", async () => {
