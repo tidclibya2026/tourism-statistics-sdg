@@ -83,6 +83,7 @@ export async function buildDataAssistantContext(input: Pick<DataAssistantInput, 
 
   const includeNational = input.scope !== "spatial";
   const includeSpatial = input.scope !== "national" && input.scope !== "forecast";
+  const sources = Array.from(new Set([...approvedRows.map((row) => row.source), ...spatialRows.map((row) => row.source)].filter((source): source is string => Boolean(source)))).slice(0, 20);
   const context = {
     policy: "مصدر البيانات الوحيد هو سجلات المنصة المعتمدة. لا تُستخدم المسودات أو القياسات قيد المراجعة أو مصادر الإنترنت.",
     scope: input.scope ?? "all",
@@ -90,6 +91,7 @@ export async function buildDataAssistantContext(input: Pick<DataAssistantInput, 
     national: includeNational ? { summary: dashboard.summary, availableYears: dashboard.availableYears, latest: dashboard.latest, growth: dashboard.indicatorGrowth, approvedAnnualRows: latestRows } : null,
     spatial: includeSpatial ? { summary: spatial.summary, availableYears: spatial.availableYears, approvedAnnualRows: spatialRows } : null,
     forecasts: input.scope === "national" || input.scope === "spatial" ? [] : forecastRows,
+    sources,
     counts: { approvedNationalAnnualRows: approvedRows.length, approvedSpatialRows: spatialRows.length, calculatedForecastPoints: forecastRows.length },
   };
   return context;
@@ -110,7 +112,7 @@ export async function answerDataQuestion(input: DataAssistantInput) {
   const content = response.choices[0]?.message?.content;
   const answer = typeof content === "string" ? content.trim() : "";
   if (!answer) throw new Error("تعذر الحصول على إجابة من المساعد الذكي في الوقت الحالي.");
-  return { answer, context: { axis: input.axis ?? "كل المحاور", scope: input.scope ?? "all", counts: context.counts } };
+  return { answer, context: { axis: input.axis ?? "كل المحاور", scope: input.scope ?? "all", sources: context.sources, counts: context.counts } };
 }
 
 export function isDataAssistantQuestionAllowed(question: string) {
