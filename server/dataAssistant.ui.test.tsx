@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, cleanup } from "@testing-library/react";
+import { fireEvent, render, screen, cleanup, waitFor } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ const mutate = vi.hoisted(() => vi.fn());
 const mutationOptions = vi.hoisted(() => ({ current: null as null | { onSuccess?: (result: unknown, variables: { question: string }) => void } }));
 vi.mock("@/lib/trpc", () => ({ trpc: { assistant: { data: { useMutation: (options: typeof mutationOptions.current) => { mutationOptions.current = options; return { mutate, isPending: false }; } } } } }));
 vi.mock("streamdown", () => ({ Streamdown: ({ children }: { children: string }) => children }));
+vi.mock("@/lib/dashboardPdf", () => ({ exportDashboardPdf: vi.fn(() => Promise.resolve()) }));
 
 import { DataAssistantPanel } from "../client/src/components/DataAssistantPanel";
 import { getSuggestedPrompts } from "../client/src/lib/dataAssistantPrompts";
@@ -45,6 +46,18 @@ describe("data assistant UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "نعم، مسح السجل بالكامل" }));
     expect(screen.queryByText("سجل أسئلة المساعد")).toBeNull();
     expect(window.localStorage.getItem("tidc-data-assistant-history-v1")).toBe("[]");
+  });
+
+  it("يحدد الكل ويلغي التحديد ويحفظ الاختيارات محلياً ويعرض تقدم التصدير", async () => {
+    window.localStorage.setItem("tidc-data-assistant-history-v1", JSON.stringify([{ id: 1, question: "سؤال أول", answer: "إجابة أولى", context: { axis: "اقتصادي", scope: "national", sources: ["تقرير رسمي"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }, { id: 2, question: "سؤال ثان", answer: "إجابة ثانية", context: { axis: "سياحي", scope: "spatial", sources: ["سجل مكاني"], counts: { approvedNationalAnnualRows: 0, approvedSpatialRows: 1, calculatedForecastPoints: 0 } } }]));
+    window.localStorage.setItem("tidc-data-assistant-selected-v1", JSON.stringify([1]));
+    render(<DataAssistantPanel />);
+    expect(screen.getByRole("button", { name: "تصدير المحدد (1)" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "تحديد الكل" }));
+    await waitFor(() => expect(window.localStorage.getItem("tidc-data-assistant-selected-v1")).toBe("[1,2]"));
+    expect(screen.getByRole("button", { name: "تصدير المحدد (2)" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "إلغاء تحديد الكل" }));
+    await waitFor(() => expect(window.localStorage.getItem("tidc-data-assistant-selected-v1")).toBe("[]"));
   });
 
   it("يعرض السجل ويتيح تصدير الإجابة مع مصادرها بعد نجاح الإجابة", async () => {
