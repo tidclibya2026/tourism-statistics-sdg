@@ -55,7 +55,7 @@ describe("data assistant UI", () => {
     expect(screen.getByRole("button", { name: "تصدير المحدد PDF (1)" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "تصدير المحدد Excel" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "تحديد الكل" }));
-    await waitFor(() => expect(window.localStorage.getItem("tidc-data-assistant-selected-v1")).toBe("[1,2]"));
+    await waitFor(() => expect(window.localStorage.getItem("tidc-data-assistant-selected-v1")).toBe("[2,1]"));
     expect(screen.getByRole("button", { name: "تصدير المحدد PDF (2)" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "إلغاء تحديد الكل" }));
     await waitFor(() => expect(window.localStorage.getItem("tidc-data-assistant-selected-v1")).toBe("[]"));
@@ -69,6 +69,19 @@ describe("data assistant UI", () => {
     expect(screen.getByText("ما أحدث مؤشر اقتصادي؟")).toBeTruthy();
     expect(screen.queryByText("ما أحدث مؤشر سياحي؟")).toBeNull();
     expect(screen.getByRole("button", { name: "تصدير المحدد Excel" })).toBeTruthy();
+  });
+
+  it("يفلتر السجل حسب المحور والتاريخ ويفرز الأقدم ويعرض تصدير النتائج الحالية", async () => {
+    window.localStorage.setItem("tidc-data-assistant-history-v1", JSON.stringify([{ id: new Date("2026-08-20T10:00:00Z").getTime(), question: "سؤال اقتصادي", answer: "إجابة اقتصادية", context: { axis: "اقتصادي", scope: "national", sources: ["تقرير رسمي"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }, { id: new Date("2026-08-25T10:00:00Z").getTime(), question: "سؤال بيئي", answer: "إجابة بيئية", context: { axis: "بيئي", scope: "national", sources: ["سجل بيئي"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }]));
+    render(<DataAssistantPanel />);
+    fireEvent.change(screen.getByRole("combobox", { name: "تصفية حسب المحور" }), { target: { value: "اقتصادي" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "ترتيب سجل المحادثات" }), { target: { value: "oldest" } });
+    fireEvent.change(screen.getByLabelText("تصفية من تاريخ"), { target: { value: "2026-08-19" } });
+    fireEvent.change(screen.getByLabelText("تصفية إلى تاريخ"), { target: { value: "2026-08-21" } });
+    expect(screen.getByText("سؤال اقتصادي")).toBeTruthy();
+    expect(screen.queryByText("سؤال بيئي")).toBeNull();
+    expect(screen.getByRole("button", { name: /تصدير نتائج البحث PDF/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /تصدير نتائج البحث Excel/ })).toBeTruthy();
   });
 
   it("يعرض السجل ويتيح تصدير الإجابة مع مصادرها بعد نجاح الإجابة", async () => {
