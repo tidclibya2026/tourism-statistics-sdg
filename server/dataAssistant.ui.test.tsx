@@ -22,6 +22,18 @@ describe("data assistant UI", () => {
   });
   afterEach(() => cleanup());
 
+  it("يعرض مؤشر عدد الفلاتر النشطة ويتحدث مع إعادة الضبط", () => {
+    window.localStorage.setItem("tidc-data-assistant-history-v1", JSON.stringify([{ id: 1, question: "سؤال", answer: "إجابة", context: { axis: "اقتصادي", scope: "national", sources: ["مصدر"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }]));
+    render(<DataAssistantPanel />);
+    expect(screen.queryByText("1 فلاتر نشطة")).toBeNull();
+    fireEvent.change(screen.getByRole("textbox", { name: "بحث في سجل المحادثات" }), { target: { value: "سؤال" } });
+    expect(screen.getByText("1 فلاتر نشطة")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("تصفية حسب مصدر البيانات"), { target: { value: "مصدر" } });
+    expect(screen.getByText("2 فلاتر نشطة")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "إعادة ضبط الفلاتر" }));
+    expect(screen.queryByText(/فلاتر نشطة/)).toBeNull();
+  });
+
   it("يعرض سياسة المصدر الواحد والأسئلة المقترحة والفلاتر", () => {
     render(<DataAssistantPanel />);
     expect(screen.getByText("مساعد بيانات المرصد")).toBeTruthy();
