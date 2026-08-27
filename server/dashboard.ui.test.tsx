@@ -24,7 +24,7 @@ vi.mock("@/lib/trpc", () => ({
       summary: { useQuery: () => ({ data: dashboardData, isLoading: false, isError: false, refetch: vi.fn() }) },
       narrative: { useMutation: () => ({ data: { text: "## الملخص التنفيذي\n\nتم تحقيق المستهدف." }, mutate, isPending: false, isError: false }) },
     },
-    spatial: { overview: { useQuery: () => ({ data: { availableYears: [2025], observations: [{ areaName: "طرابلس", areaType: "city", year: 2025 }] }, isLoading: false, isError: false }) } },
+    spatial: { overview: { useQuery: () => ({ data: { availableYears: [2025], indicators: [{ id: 1, name: "الوافدون", unit: "عدد" }], observations: [{ areaName: "طرابلس", areaType: "city", indicatorId: 1, indicatorName: "الوافدون", unit: "عدد", year: 2025, value: 100, source: "مصدر رسمي" }] }, isLoading: false, isError: false }) } },
   },
 }));
 
@@ -78,6 +78,9 @@ describe("dashboard export and AI summary UI", () => {
     expect(screen.getByText("القياسات المعتمدة")).toBeTruthy();
     expect(screen.getByText("أكثر المناطق نشاطاً")).toBeTruthy();
     expect(screen.getByText("أعلى المؤشرات نمواً")).toBeTruthy();
+    expect(screen.getByText("خريطة المؤشرات السياحية بالبلديات")).toBeTruthy();
+    expect(screen.getByText("بحث عن بلدية")).toBeTruthy();
+    expect(screen.getByText("تفاصيل البلدية")).toBeTruthy();
     expect(screen.getByText(/جاري تحميل طبقة حدود البلديات المرفقة|طبقة حدود البلديات الرسمية المعتمدة محملة/)).toBeTruthy();
     expect(screen.getByText("طرابلس")).toBeTruthy();
     expect(screen.getByText("2025")).toBeTruthy();

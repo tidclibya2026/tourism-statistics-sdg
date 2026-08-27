@@ -27,6 +27,7 @@ import {
   LoaderCircle,
   MapPin,
   MapPinned,
+  Search,
   Sparkles,
   Target,
   TrendingUp,
@@ -854,7 +855,12 @@ export default function Home() {
         </Card>
       </section>
 
-      <DashboardActivityMap areas={activeAreas} year={latestSpatialYear} />
+      <DashboardActivityMap
+        areas={activeAreas}
+        year={latestSpatialYear}
+        observations={spatial.data?.observations ?? []}
+        indicators={spatial.data?.indicators ?? []}
+      />
 
       <section className="grid gap-5 xl:grid-cols-[1.35fr_.95fr]">
         <Card className="border-[#dce8e4] shadow-sm">
@@ -1239,14 +1245,22 @@ export default function Home() {
 function DashboardActivityMap({
   areas,
   year,
+  observations,
+  indicators,
 }: {
   areas: { name: string; type: string; count: number }[];
   year?: number;
+  observations: { areaName: string; indicatorId: number; indicatorName: string; unit: string; year: number; value: number; source: string | null }[];
+  indicators: { id: number; name: string; unit: string }[];
 }) {
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [boundaryReady, setBoundaryReady] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [selectedIndicatorId, setSelectedIndicatorId] = useState<number | null>(null);
   const markerRefs = useRef<google.maps.Marker[]>([]);
   const boundaryLayerRef = useRef<google.maps.Data | null>(null);
+  const boundaryFeaturesRef = useRef<google.maps.Data.Feature[]>([]);
   const geocodeCache = useRef<Map<string, google.maps.LatLngLiteral>>(
     new Map()
   );
@@ -1281,7 +1295,7 @@ function DashboardActivityMap({
         const info = new window.google.maps.InfoWindow({
           content: `<div dir="rtl" style="font-family:Arial;padding:5px 4px;min-width:150px"><strong>${area.name}</strong><br/><small>${area.type} · ${area.count} قياس معتمد</small></div>`,
         });
-        marker.addListener("click", () => info.open({ map, anchor: marker }));
+        marker.addListener("click", () => setSelectedName(area.name));
         markerRefs.current.push(marker);
       };
       const cached = geocodeCache.current.get(area.name);
@@ -1315,21 +1329,9 @@ function DashboardActivityMap({
     let cancelled = false;
     const layer = new window.google.maps.Data({ map });
     boundaryLayerRef.current = layer;
-    layer.setStyle({
-      fillColor: "#0f766e",
-      fillOpacity: 0.12,
-      strokeColor: "#0f766e",
-      strokeOpacity: 0.72,
-      strokeWeight: 1.5,
-    });
     layer.addListener("click", (event: google.maps.Data.MouseEvent) => {
-      const name = event.feature.getProperty("MahallaA_1") || event.feature.getProperty("MahallaAre") || "بلدية";
-      const key = event.feature.getProperty("MahallaKey");
-      const info = new window.google.maps.InfoWindow({
-        content: `<div dir="rtl" style="font-family:Arial;padding:6px 4px;min-width:170px"><strong>${String(name)}</strong><br/><small>طبقة البلديات · الرمز: ${String(key ?? "غير متوفر")}</small></div>`,
-        position: event.latLng,
-      });
-      info.open({ map });
+      const name = String(event.feature.getProperty("MahallaA_1") || event.feature.getProperty("MahallaAre") || "بلدية");
+      setSelectedName(name);
     });
     fetch("/manus-storage/municipalities-wgs84_11f127be.geojson")
       .then(response => {
@@ -1338,7 +1340,7 @@ function DashboardActivityMap({
       })
       .then(geojson => {
         if (cancelled) return;
-        layer.addGeoJson(geojson);
+        boundaryFeaturesRef.current = layer.addGeoJson(geojson);
         setBoundaryReady(true);
       })
       .catch(() => {
@@ -1348,29 +1350,108 @@ function DashboardActivityMap({
       cancelled = true;
       layer.setMap(null);
       boundaryLayerRef.current = null;
+      boundaryFeaturesRef.current = [];
       setBoundaryReady(false);
     };
   }, [map]);
+  useEffect(() => {
+    if (selectedIndicatorId === null && indicators[0]) setSelectedIndicatorId(indicators[0].id);
+  }, [indicators, selectedIndicatorId]);
+  const selectedIndicator = indicators.find(item => item.id === selectedIndicatorId) ?? indicators[0];
+  const indicatorValues = useMemo(() => {
+    const rows = observations
+      .filter(row => selectedIndicator && row.indicatorId === selectedIndicator.id)
+      .sort((a, b) => b.year - a.year);
+    const latestYear = year ?? rows[0]?.year;
+    const values = new Map<string, number>();
+    rows.filter(row => row.year === latestYear).forEach(row => {
+      if (!values.has(row.areaName)) values.set(row.areaName, row.value);
+    });
+    return values;
+  }, [indicators, observations, selectedIndicator, year]);
+  const valueRange = useMemo(() => {
+    const values = Array.from(indicatorValues.values());
+    return { min: Math.min(...values), max: Math.max(...values) };
+  }, [indicatorValues]);
+  useEffect(() => {
+    const layer = boundaryLayerRef.current;
+    if (!layer) return;
+    layer.setStyle(feature => {
+      const name = String(feature.getProperty("MahallaA_1") || feature.getProperty("MahallaAre") || "");
+      const value = indicatorValues.get(name);
+      const { min, max } = valueRange;
+      const ratio = value === undefined || !Number.isFinite(min) || min === max ? 0.18 : (value - min) / (max - min);
+      const selected = name === selectedName;
+      return {
+        fillColor: selected ? "#c58a3f" : `hsl(${165 - Math.round(ratio * 25)} 68% ${82 - Math.round(ratio * 35)}%)`,
+        fillOpacity: selected ? 0.62 : 0.25 + ratio * 0.42,
+        strokeColor: selected ? "#9a611e" : "#0f766e",
+        strokeOpacity: 0.85,
+        strokeWeight: selected ? 2.6 : 1.2,
+      };
+    });
+  }, [indicatorValues, selectedName, valueRange]);
+  const areaNames = useMemo(() => Array.from(new Set([...areas.map(area => area.name), ...observations.map(row => row.areaName)])).sort((a, b) => a.localeCompare(b, "ar")), [areas, observations]);
+  const selectedRows = useMemo(() => observations.filter(row => row.areaName === selectedName && (!selectedIndicator || row.indicatorId === selectedIndicator.id)).sort((a, b) => b.year - a.year).slice(0, 12), [observations, selectedIndicator, selectedName]);
+  function focusArea() {
+    const query = searchTerm.trim().toLocaleLowerCase("ar");
+    if (!query || !map) return;
+    const feature = boundaryFeaturesRef.current.find(item => {
+      const name = String(item.getProperty("MahallaA_1") || item.getProperty("MahallaAre") || "");
+      return name.toLocaleLowerCase("ar").includes(query);
+    });
+    const matchName = feature ? String(feature.getProperty("MahallaA_1") || feature.getProperty("MahallaAre") || "") : areaNames.find(name => name.toLocaleLowerCase("ar").includes(query));
+    if (!matchName) return;
+    setSelectedName(matchName);
+    if (feature) {
+      const bounds = new window.google.maps.LatLngBounds();
+      feature.getGeometry()?.forEachLatLng(point => bounds.extend(point));
+      map.fitBounds(bounds);
+    }
+  }
+  const selectedRangeText = Number.isFinite(valueRange.min) && Number.isFinite(valueRange.max) ? `${arabicNumber.format(valueRange.min)} – ${arabicNumber.format(valueRange.max)} ${selectedIndicator?.unit ?? ""}` : "لا توجد قيم معتمدة ضمن النطاق";
   return (
     <section className="overflow-hidden rounded-2xl border border-[#cfe2db] bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b border-[#e4efeb] px-5 py-4">
-        <div>
-          <h2 className="font-bold text-[#173f3d]">خريطة النشاط الجغرافي</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            عرض تفاعلي لأكثر المناطق نشاطاً في{" "}
-            {year ? formatYear(year) : "أحدث سنة متاحة"}؛ انقر على العلامة لعرض
-            التفاصيل.
-          </p>
-          <p className={`mt-2 text-[11px] leading-5 ${boundaryReady ? "text-emerald-700" : "text-amber-700"}`}>{boundaryReady ? "طبقة حدود البلديات الرسمية المعتمدة محملة بعد تحويلها إلى WGS 84؛ انقر على أي بلدية للتفاصيل." : "جاري تحميل طبقة حدود البلديات المرفقة؛ ستظهر بعد اكتمال التحقق من الملف."}</p>
+      <div className="border-b border-[#e4efeb] px-5 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-[#173f3d]">خريطة المؤشرات السياحية بالبلديات</h2>
+            <p className="mt-1 text-xs text-slate-500">تدرج لوني للقيمة السنوية المعتمدة حسب المؤشر المختار؛ {year ? formatYear(year) : "أحدث سنة متاحة"}.</p>
+            <p className={`mt-2 text-[11px] leading-5 ${boundaryReady ? "text-emerald-700" : "text-amber-700"}`}>{boundaryReady ? "طبقة حدود البلديات الرسمية المعتمدة محملة وفق WGS 84." : "جاري تحميل طبقة حدود البلديات المرفقة."}</p>
+          </div>
+          <MapPinned className="h-5 w-5 text-[#b47730]" />
         </div>
-        <MapPinned className="h-5 w-5 text-[#b47730]" />
+        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+          <label className="space-y-1 text-xs font-semibold text-slate-600">
+            <span>المؤشر الملون</span>
+            <Select value={selectedIndicator ? String(selectedIndicator.id) : ""} onValueChange={value => setSelectedIndicatorId(Number(value))}>
+              <SelectTrigger><SelectValue placeholder="اختر مؤشراً" /></SelectTrigger>
+              <SelectContent>{indicators.map(indicator => <SelectItem key={indicator.id} value={String(indicator.id)}>{indicator.name} · {indicator.unit}</SelectItem>)}</SelectContent>
+            </Select>
+          </label>
+          <label className="space-y-1 text-xs font-semibold text-slate-600">
+            <span>بحث عن بلدية</span>
+            <div className="flex gap-2">
+              <input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} onKeyDown={event => { if (event.key === "Enter") focusArea(); }} placeholder="مثال: طرابلس" className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e]/30" />
+              <Button type="button" size="icon" variant="outline" onClick={focusArea} aria-label="البحث عن بلدية"><Search className="h-4 w-4" /></Button>
+            </div>
+          </label>
+          <div className="rounded-lg bg-[#f4faf7] px-3 py-2 text-[11px] text-slate-600"><span className="font-semibold text-[#0f5c58]">نطاق القيم</span><br />{selectedRangeText}</div>
+        </div>
       </div>
-      <MapView
-        className="h-[360px]"
-        initialCenter={{ lat: 26.3351, lng: 17.2283 }}
-        initialZoom={5}
-        onMapReady={setMap}
-      />
+      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <MapView className="h-[420px]" initialCenter={{ lat: 26.3351, lng: 17.2283 }} initialZoom={5} onMapReady={setMap} />
+        <aside className="border-t border-[#e4efeb] bg-[#fbfdfc] p-5 xl:border-t-0 xl:border-r">
+          <div className="flex items-center justify-between gap-2"><h3 className="font-bold text-[#173f3d]">تفاصيل البلدية</h3>{selectedName && <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedName(null)}>إغلاق</Button>}</div>
+          {selectedName ? <>
+            <p className="mt-3 text-lg font-bold text-[#0f5c58]">{selectedName}</p>
+            <p className="mt-1 text-xs text-slate-500">{selectedIndicator?.name ?? "المؤشر المختار"}</p>
+            <div className="mt-4 space-y-2 text-sm">
+              {selectedRows.length ? selectedRows.map(row => <div key={row.indicatorId + "-" + row.year} className="rounded-lg border border-[#e1ece8] bg-white p-3"><div className="flex justify-between gap-2"><span>{formatYear(row.year)}</span><strong>{arabicNumber.format(row.value)} <small className="font-normal text-slate-500">{row.unit}</small></strong></div><p className="mt-1 text-[11px] text-slate-500">المصدر: {row.source ?? "غير محدد"} · معتمد</p></div>) : <p className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">لا توجد قياسات معتمدة لهذا المؤشر والبلدية ضمن النطاق الحالي.</p>}
+            </div>
+          </> : <p className="mt-4 text-sm leading-6 text-slate-500">انقر على بلدية في الخريطة أو استخدم البحث لعرض قياساتها السنوية المعتمدة.</p>}
+        </aside>
+      </div>
     </section>
   );
 }
