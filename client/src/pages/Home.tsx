@@ -10,7 +10,10 @@ import {
   periodLabel,
 } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
-import { downloadDashboardWorkbook } from "@/lib/dashboardDownload";
+import {
+  downloadDashboardCsv,
+  downloadDashboardWorkbook,
+} from "@/lib/dashboardDownload";
 import { exportDashboardPdf, exportElementPng } from "@/lib/dashboardPdf";
 import { Streamdown } from "streamdown";
 import html2canvas from "html2canvas";
@@ -20,6 +23,7 @@ import {
   CalendarDays,
   ChartNoAxesCombined,
   Database,
+  FileDown,
   FileSpreadsheet,
   FileText,
   ImageDown,
@@ -138,7 +142,9 @@ export default function Home() {
   });
   const narrative = trpc.dashboard.narrative.useMutation();
   const data = dashboard.data;
-  const [exporting, setExporting] = useState<"excel" | "pdf" | "png" | null>(null);
+  const [exporting, setExporting] = useState<
+    "csv" | "excel" | "pdf" | "png" | null
+  >(null);
   const isRefreshing =
     dashboard.isFetching || spatial.isFetching || spatialOptions.isFetching;
   const indicatorOptions = data?.indicators ?? [];
@@ -198,7 +204,16 @@ export default function Home() {
 
   if (dashboard.isLoading) {
     return (
-      <div className="space-y-5">
+      <div
+        className="space-y-5"
+        role="status"
+        aria-live="polite"
+        aria-label="جارٍ تحميل لوحة المؤشرات"
+      >
+        <div className="flex items-center gap-2 rounded-2xl border border-[#cfe2db] bg-[#f4fbf8] px-4 py-3 text-sm font-semibold text-[#0f5c58]">
+          <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+          جارٍ تحميل المؤشرات والرسوم والملخصات المعتمدة…
+        </div>
         <Skeleton className="h-28 w-full rounded-2xl" />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
@@ -208,6 +223,22 @@ export default function Home() {
         <Skeleton className="h-80 rounded-2xl" />
       </div>
     );
+  }
+
+  function exportCsv() {
+    if (!data) {
+      toast.error("لا تتوفر بيانات لوحة المعلومات للتصدير.");
+      return;
+    }
+    setExporting("csv");
+    try {
+      downloadDashboardCsv(data);
+      toast.success("تم تنزيل بيانات لوحة المؤشرات بصيغة CSV.");
+    } catch {
+      toast.error("تعذر إنشاء ملف CSV في الوقت الحالي.");
+    } finally {
+      setExporting(null);
+    }
   }
 
   async function exportExcel() {
@@ -430,6 +461,19 @@ export default function Home() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
+            onClick={exportCsv}
+            disabled={Boolean(exporting) || dashboard.isLoading}
+            aria-busy={exporting === "csv"}
+          >
+            {exporting === "csv" ? (
+              <LoaderCircle className="ml-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="ml-1.5 h-4 w-4 text-[#0f766e]" />
+            )}
+            CSV
+          </Button>
+          <Button
+            variant="outline"
             onClick={exportExcel}
             disabled={Boolean(exporting) || dashboard.isLoading}
             aria-busy={exporting === "excel"}
@@ -495,13 +539,33 @@ export default function Home() {
       </section>
 
       {dashboard.isError && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-          تعذر تحميل لوحة المؤشرات.{" "}
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+          role="alert"
+        >
+          <span>تعذر تحميل لوحة المؤشرات. تحقق من الاتصال ثم أعد المحاولة.</span>
           <button
-            className="mr-2 font-bold underline"
+            className="font-bold underline underline-offset-4"
             onClick={() => dashboard.refetch()}
           >
-            إعادة المحاولة
+            إعادة تحميل اللوحة
+          </button>
+        </div>
+      )}
+      {(spatial.isError || spatialOptions.isError) && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          role="alert"
+        >
+          <span>تعذر تحميل البيانات المكانية والخريطة. بقية إحصائيات اللوحة متاحة.</span>
+          <button
+            className="font-bold underline underline-offset-4"
+            onClick={() => {
+              void spatial.refetch();
+              void spatialOptions.refetch();
+            }}
+          >
+            إعادة تحميل الخريطة
           </button>
         </div>
       )}
@@ -1068,7 +1132,7 @@ export default function Home() {
                   حركة القياسات السنوية المعتمدة
                 </h3>
                 <p className="mt-1 text-xs text-slate-500">
-                  عدد القياسات المعتمدة خلال كل سنة.
+                  عدد القياسات المعتمدة خلال كل سنة. انقر على سنة لتطبيقها كفلتر.
                 </p>
               </div>
               <Activity className="h-5 w-5 text-[#0f5c58]" />
@@ -1079,6 +1143,12 @@ export default function Home() {
                   <LineChart
                     data={data.trendByYear}
                     margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+                    onClick={(state: unknown) => {
+                      const activeLabel = (
+                        state as { activeLabel?: string | number } | undefined
+                      )?.activeLabel;
+                      if (activeLabel !== undefined) setYear(String(activeLabel));
+                    }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e4ece9" />
                     <XAxis
@@ -1119,7 +1189,7 @@ export default function Home() {
                   توزيع المؤشرات حسب المحور
                 </h3>
                 <p className="mt-1 text-xs text-slate-500">
-                  تصنيف المؤشرات في الإطار الوطني.
+                  تصنيف المؤشرات في الإطار الوطني. انقر على محور لتطبيقه كفلتر.
                 </p>
               </div>
               <ChartNoAxesCombined className="h-5 w-5 text-[#0f5c58]" />
@@ -1131,6 +1201,18 @@ export default function Home() {
                     data={data.axisDistribution}
                     layout="vertical"
                     margin={{ top: 8, right: 24, left: 16, bottom: 0 }}
+                    onClick={(state: unknown) => {
+                      const activeLabel = (
+                        state as { activeLabel?: string | number } | undefined
+                      )?.activeLabel;
+                      if (
+                        activeLabel === "اقتصادي" ||
+                        activeLabel === "اجتماعي" ||
+                        activeLabel === "بيئي"
+                      ) {
+                        setAxis(activeLabel);
+                      }
+                    }}
                   >
                     <CartesianGrid horizontal={false} stroke="#e4ece9" />
                     <XAxis type="number" allowDecimals={false} hide />
@@ -1146,7 +1228,7 @@ export default function Home() {
                         "مؤشر",
                       ]}
                     />
-                    <Bar dataKey="count" radius={[0, 7, 7, 0]}>
+                    <Bar dataKey="count" radius={[0, 7, 7, 0]} cursor="pointer">
                       {data.axisDistribution.map((entry, index) => (
                         <Cell fill={axisColors[index]} key={entry.axis} />
                       ))}

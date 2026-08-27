@@ -17,11 +17,17 @@ const dashboardData = {
   recent: [],
   indicatorGrowth: [{ indicatorId: 1, name: "الوافدون", unit: "عدد", firstYear: 2024, lastYear: 2025, growthPercent: 25 }],
 };
+const dashboardQuery = {
+  data: dashboardData,
+  isLoading: false,
+  isError: false,
+  refetch: vi.fn(),
+};
 
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     dashboard: {
-      summary: { useQuery: () => ({ data: dashboardData, isLoading: false, isError: false, refetch: vi.fn() }) },
+      summary: { useQuery: () => dashboardQuery },
       narrative: { useMutation: () => ({ data: { text: "## الملخص التنفيذي\n\nتم تحقيق المستهدف." }, mutate, isPending: false, isError: false }) },
     },
     spatial: { overview: { useQuery: () => ({ data: { availableYears: [2025], indicators: [{ id: 1, name: "الوافدون", unit: "عدد" }], observations: [{ areaName: "طرابلس", areaType: "city", indicatorId: 1, indicatorName: "الوافدون", unit: "عدد", year: 2025, value: 100, source: "مصدر رسمي" }] }, isLoading: false, isError: false }) } },
@@ -41,12 +47,19 @@ vi.stubGlobal("ResizeObserver", class {
   unobserve() {}
   disconnect() {}
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => {
+  dashboardQuery.data = dashboardData;
+  dashboardQuery.isLoading = false;
+  dashboardQuery.isError = false;
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("dashboard export and AI summary UI", () => {
   it("changes the SDG filter then generates and renders the AI narrative for that scope", () => {
     render(<Home />);
     expect(screen.getByText("هدف التنمية")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "CSV" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Excel" })).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "PDF" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("نطاق العرض المعتمد")).toBeTruthy();
@@ -71,6 +84,15 @@ describe("dashboard export and AI summary UI", () => {
     expect(screen.getByRole("button", { name: "لقطة PDF" })).toBeTruthy();
     expect(screen.getByText("الوحدة: عدد · السنة: 2025")).toBeTruthy();
     expect(screen.getByText("الوحدة: ليلة · السنة: 2025")).toBeTruthy();
+  });
+
+  it("يعرض حالة تحميل وصولية أثناء جلب بيانات اللوحة", () => {
+    dashboardQuery.isLoading = true;
+    render(<Home />);
+    expect(
+      screen.getByRole("status", { name: "جارٍ تحميل لوحة المؤشرات" })
+    ).toBeTruthy();
+    expect(screen.getByText(/جارٍ تحميل المؤشرات والرسوم/)).toBeTruthy();
   });
 
   it("يعرض مؤشرات الملخص والنطاق المعتمد ويدعم تبديل محور العرض", () => {

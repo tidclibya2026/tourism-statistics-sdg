@@ -12,13 +12,26 @@ export type TargetPerformance = {
 };
 
 export type DashboardExportData = {
-  summary: { totalIndicators: number; publishedIndicators: number; approvedObservations: number; latestYear: number | null; indicatorsWithTargets: number; achievedTargets: number };
+  summary: {
+    totalIndicators: number;
+    publishedIndicators: number;
+    approvedObservations: number;
+    latestYear: number | null;
+    indicatorsWithTargets: number;
+    achievedTargets: number;
+  };
   trendByYear: { year: number; observations: number }[];
   axisDistribution: { axis: string; count: number }[];
   targetPerformance: TargetPerformance[];
 };
 
-export function toDashboardExportSheets(data: DashboardExportData, generatedAt = new Date().toLocaleString("ar-LY")) {
+type ExportCell = string | number;
+type ExportRow = Record<string, ExportCell>;
+
+export function toDashboardExportSheets(
+  data: DashboardExportData,
+  generatedAt = new Date().toLocaleString("ar-LY")
+) {
   return {
     "ملخص اللوحة": [
       { البند: "تاريخ التصدير", القيمة: generatedAt },
@@ -29,7 +42,7 @@ export function toDashboardExportSheets(data: DashboardExportData, generatedAt =
       { البند: "مؤشرات لها أهداف", القيمة: data.summary.indicatorsWithTargets },
       { البند: "أهداف محققة", القيمة: data.summary.achievedTargets },
     ],
-    "تحقيق المستهدفات": data.targetPerformance.map((item) => ({
+    "تحقيق المستهدفات": data.targetPerformance.map(item => ({
       "رمز المؤشر": item.code,
       المؤشر: item.name,
       المحور: item.axis,
@@ -41,7 +54,37 @@ export function toDashboardExportSheets(data: DashboardExportData, generatedAt =
       الوحدة: item.unit,
       الحالة: item.status === "achieved" ? "محقق" : "دون المستهدف",
     })),
-    "بيانات الرسوم": data.trendByYear.map((item) => ({ السنة: item.year, "القياسات السنوية المعتمدة": item.observations })),
-    "توزيع المحاور": data.axisDistribution.map((item) => ({ المحور: item.axis, "عدد المؤشرات": item.count })),
+    "بيانات الرسوم": data.trendByYear.map(item => ({
+      السنة: item.year,
+      "القياسات السنوية المعتمدة": item.observations,
+    })),
+    "توزيع المحاور": data.axisDistribution.map(item => ({
+      المحور: item.axis,
+      "عدد المؤشرات": item.count,
+    })),
   };
+}
+
+function escapeCsvCell(value: unknown) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+export function createDashboardCsv(
+  data: DashboardExportData,
+  generatedAt = new Date().toLocaleString("ar-LY")
+) {
+  const sections = toDashboardExportSheets(data, generatedAt) as Record<
+    string,
+    ExportRow[]
+  >;
+  const rows: ExportRow[] = Object.entries(sections).flatMap(
+    ([section, sectionRows]) =>
+      sectionRows.map(row => ({ القسم: section, ...row }) as ExportRow)
+  );
+  const headers = Array.from(new Set(rows.flatMap(row => Object.keys(row))));
+  const lines = [
+    headers.map(escapeCsvCell).join(","),
+    ...rows.map(row => headers.map(header => escapeCsvCell(row[header])).join(",")),
+  ];
+  return `\uFEFF${lines.join("\r\n")}\r\n`;
 }

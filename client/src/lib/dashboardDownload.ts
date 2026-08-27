@@ -1,5 +1,9 @@
 import ExcelJS from "exceljs";
-import { toDashboardExportSheets, type DashboardExportData } from "./dashboardExport";
+import {
+  createDashboardCsv,
+  toDashboardExportSheets,
+  type DashboardExportData,
+} from "./dashboardExport";
 
 function appendRows(sheet: ExcelJS.Worksheet, rows: Record<string, string | number>[]) {
   const headers = Object.keys(rows[0] ?? { البند: "" });
@@ -32,13 +36,29 @@ export async function createDashboardWorkbook(data: DashboardExportData, chartIm
   return workbook.xlsx.writeBuffer();
 }
 
-export async function downloadDashboardWorkbook(data: DashboardExportData, chartImageDataUrl?: string) {
+export async function downloadDashboardWorkbook(
+  data: DashboardExportData,
+  chartImageDataUrl?: string
+) {
   const buffer = await createDashboardWorkbook(data, chartImageDataUrl);
-  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = `لوحة-المؤشرات-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadDashboardCsv(data: DashboardExportData) {
+  const csv = createDashboardCsv(data);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `لوحة-المؤشرات-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
