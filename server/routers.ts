@@ -14,6 +14,7 @@ import { validateUnitValues } from "../shared/unitValidation";
 import { invokeLLM } from "./_core/llm";
 import { buildDashboardNarrativePrompt, dashboardNarrativeSystemPrompt } from "./dashboardNarrative";
 import { answerHelpQuestion } from "./helpChatbot";
+import { answerDataQuestion } from "./dataAssistant";
 import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 
@@ -111,6 +112,14 @@ export const appRouter = router({
     preferences: protectedProcedure.query(({ ctx }) => db.getUserPreferences(ctx.user.id)),
     updatePreferences: protectedProcedure.input(z.object({ notifySupportReplies: z.boolean(), notifySupportStatus: z.boolean() })).mutation(({ ctx, input }) => db.updateUserPreferences(ctx.user.id, input)),
     updateDisplayName: protectedProcedure.input(z.object({ name: z.string().trim().min(2, "الاسم الظاهر قصير جداً.").max(120) })).mutation(({ ctx, input }) => db.updateUserDisplayName(ctx.user.id, input.name)),
+  }),
+  assistant: router({
+    data: protectedProcedure.input(z.object({
+      question: z.string().trim().min(2, "اكتب سؤالاً لا يقل عن حرفين.").max(1200),
+      history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1800) })).max(6).default([]),
+      axis: z.enum(["اقتصادي", "اجتماعي", "بيئي", "سياحي"]).optional(),
+      scope: z.enum(["all", "national", "spatial", "forecast"]).optional(),
+    })).mutation(({ input }) => answerDataQuestion(input)),
   }),
   dashboard: router({
     summary: protectedProcedure.input(z.object({

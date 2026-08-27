@@ -11,7 +11,7 @@ import {
 } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
 import { downloadDashboardWorkbook } from "@/lib/dashboardDownload";
-import { exportDashboardPdf } from "@/lib/dashboardPdf";
+import { exportDashboardPdf, exportElementPng } from "@/lib/dashboardPdf";
 import { Streamdown } from "streamdown";
 import html2canvas from "html2canvas";
 import {
@@ -1258,6 +1258,8 @@ function DashboardActivityMap({
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [selectedIndicatorId, setSelectedIndicatorId] = useState<number | null>(null);
+  const [exportingMap, setExportingMap] = useState<"png" | "pdf" | null>(null);
+  const mapShellRef = useRef<HTMLElement | null>(null);
   const markerRefs = useRef<google.maps.Marker[]>([]);
   const boundaryLayerRef = useRef<google.maps.Data | null>(null);
   const boundaryFeaturesRef = useRef<google.maps.Data.Feature[]>([]);
@@ -1324,6 +1326,20 @@ function DashboardActivityMap({
       ) as google.maps.Marker[];
     };
   }, [areas, map]);
+  useEffect(() => {
+    markerRefs.current.forEach(marker => {
+      const selected = marker.getTitle() === selectedName;
+      marker.setIcon({
+        path: window.google.maps.SymbolPath.CIRCLE,
+        scale: selected ? 17 : 13,
+        fillColor: selected ? "#c58a3f" : "#0f766e",
+        fillOpacity: 1,
+        strokeColor: "#ffffff",
+        strokeWeight: selected ? 3 : 2,
+      });
+      marker.setZIndex(selected ? 20 : 10);
+    });
+  }, [selectedName]);
   useEffect(() => {
     if (!map || !window.google) return;
     let cancelled = false;
@@ -1393,15 +1409,16 @@ function DashboardActivityMap({
   }, [indicatorValues, selectedName, valueRange]);
   const areaNames = useMemo(() => Array.from(new Set([...areas.map(area => area.name), ...observations.map(row => row.areaName)])).sort((a, b) => a.localeCompare(b, "ar")), [areas, observations]);
   const selectedRows = useMemo(() => observations.filter(row => row.areaName === selectedName && (!selectedIndicator || row.indicatorId === selectedIndicator.id)).sort((a, b) => b.year - a.year).slice(0, 12), [observations, selectedIndicator, selectedName]);
-  function focusArea() {
-    const query = searchTerm.trim().toLocaleLowerCase("ar");
+  function focusArea(name = searchTerm) {
+    const query = name.trim().toLocaleLowerCase("ar");
     if (!query || !map) return;
     const feature = boundaryFeaturesRef.current.find(item => {
-      const name = String(item.getProperty("MahallaA_1") || item.getProperty("MahallaAre") || "");
-      return name.toLocaleLowerCase("ar").includes(query);
+      const featureName = String(item.getProperty("MahallaA_1") || item.getProperty("MahallaAre") || "");
+      return featureName.toLocaleLowerCase("ar").includes(query);
     });
-    const matchName = feature ? String(feature.getProperty("MahallaA_1") || feature.getProperty("MahallaAre") || "") : areaNames.find(name => name.toLocaleLowerCase("ar").includes(query));
+    const matchName = feature ? String(feature.getProperty("MahallaA_1") || feature.getProperty("MahallaAre") || "") : areaNames.find(areaName => areaName.toLocaleLowerCase("ar").includes(query));
     if (!matchName) return;
+    setSearchTerm(matchName);
     setSelectedName(matchName);
     if (feature) {
       const bounds = new window.google.maps.LatLngBounds();
@@ -1409,9 +1426,27 @@ function DashboardActivityMap({
       map.fitBounds(bounds);
     }
   }
+  const suggestions = useMemo(() => {
+    const query = searchTerm.trim().toLocaleLowerCase("ar");
+    return query ? areaNames.filter(name => name.toLocaleLowerCase("ar").includes(query)).slice(0, 8) : [];
+  }, [areaNames, searchTerm]);
+  async function exportMap(format: "png" | "pdf") {
+    if (exportingMap || !mapShellRef.current) return;
+    setExportingMap(format);
+    const fileDate = new Date().toISOString().slice(0, 10);
+    try {
+      if (format === "png") await exportElementPng(mapShellRef.current, `خريطة-المؤشرات-الحرارية-${fileDate}.png`);
+      else await exportDashboardPdf(mapShellRef.current, `خريطة-المؤشرات-الحرارية-${fileDate}.pdf`);
+      toast.success(format === "png" ? "تم حفظ لقطة الخريطة كصورة." : "تم فتح نافذة حفظ لقطة الخريطة كـPDF.", { description: selectedName ? `تتضمن بيانات بلدية ${selectedName}.` : "تتضمن الخريطة ومفتاح التدرج وبيانات المؤشر." });
+    } catch {
+      toast.error("تعذر تصدير لقطة الخريطة في الوقت الحالي.");
+    } finally {
+      setExportingMap(null);
+    }
+  }
   const selectedRangeText = Number.isFinite(valueRange.min) && Number.isFinite(valueRange.max) ? `${arabicNumber.format(valueRange.min)} – ${arabicNumber.format(valueRange.max)} ${selectedIndicator?.unit ?? ""}` : "لا توجد قيم معتمدة ضمن النطاق";
   return (
-    <section className="overflow-hidden rounded-2xl border border-[#cfe2db] bg-white shadow-sm">
+    <section ref={mapShellRef} className="overflow-hidden rounded-2xl border border-[#cfe2db] bg-white shadow-sm">
       <div className="border-b border-[#e4efeb] px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -1429,14 +1464,27 @@ function DashboardActivityMap({
               <SelectContent>{indicators.map(indicator => <SelectItem key={indicator.id} value={String(indicator.id)}>{indicator.name} · {indicator.unit}</SelectItem>)}</SelectContent>
             </Select>
           </label>
-          <label className="space-y-1 text-xs font-semibold text-slate-600">
+          <label className="relative space-y-1 text-xs font-semibold text-slate-600">
             <span>بحث عن بلدية</span>
             <div className="flex gap-2">
-              <input value={searchTerm} onChange={event => setSearchTerm(event.target.value)} onKeyDown={event => { if (event.key === "Enter") focusArea(); }} placeholder="مثال: طرابلس" className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e]/30" />
-              <Button type="button" size="icon" variant="outline" onClick={focusArea} aria-label="البحث عن بلدية"><Search className="h-4 w-4" /></Button>
+              <input list="municipality-suggestions" value={searchTerm} onChange={event => setSearchTerm(event.target.value)} onKeyDown={event => { if (event.key === "Enter") focusArea(); }} placeholder="مثال: طرابلس" aria-label="بحث عن بلدية" className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e]/30" />
+              <Button type="button" size="icon" variant="outline" onClick={() => focusArea()} aria-label="البحث عن بلدية"><Search className="h-4 w-4" /></Button>
             </div>
+            <datalist id="municipality-suggestions">{suggestions.map(name => <option key={name} value={name} />)}</datalist>
+            {suggestions.length > 0 && <div role="listbox" aria-label="اقتراحات البلديات" className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-[#cfe2db] bg-white shadow-lg">{suggestions.map(name => <button type="button" role="option" aria-selected={name === selectedName} key={name} onClick={() => focusArea(name)} className={`block w-full px-3 py-2 text-right text-xs hover:bg-[#eef8f4] ${name === selectedName ? "bg-[#e7f4ee] font-bold text-[#0f5c58]" : "text-slate-700"}`}>{name}</button>)}</div>}
           </label>
           <div className="rounded-lg bg-[#f4faf7] px-3 py-2 text-[11px] text-slate-600"><span className="font-semibold text-[#0f5c58]">نطاق القيم</span><br />{selectedRangeText}</div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dfece7] bg-[#fbfdfc] px-3 py-2">
+          <div className="min-w-[220px] flex-1" aria-label="مفتاح مستويات التدرج الحراري">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600"><span>منخفض</span><span className="text-[#0f5c58]">مفتاح التدرج الحراري</span><span>مرتفع</span></div>
+            <div className="mt-1 h-3 rounded-full border border-white shadow-inner" style={{ background: "linear-gradient(90deg, hsl(165 68% 82%), hsl(153 68% 65%), hsl(140 68% 47%))" }} />
+            <div className="mt-1 flex justify-between text-[10px] text-slate-500"><span>{Number.isFinite(valueRange.min) ? arabicNumber.format(valueRange.min) : "—"}</span><span>{Number.isFinite(valueRange.max) ? arabicNumber.format(valueRange.max) : "—"} {selectedIndicator?.unit ?? ""}</span></div>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={Boolean(exportingMap)} onClick={() => exportMap("png")}><ImageDown className="ml-1 h-4 w-4" />{exportingMap === "png" ? "جارٍ التجهيز…" : "صورة"}</Button>
+            <Button type="button" variant="outline" size="sm" disabled={Boolean(exportingMap)} onClick={() => exportMap("pdf")}><FileText className="ml-1 h-4 w-4" />{exportingMap === "pdf" ? "جارٍ التجهيز…" : "PDF"}</Button>
+          </div>
         </div>
       </div>
       <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_300px]">

@@ -48,7 +48,7 @@ describe("dashboard export and AI summary UI", () => {
     render(<Home />);
     expect(screen.getByText("هدف التنمية")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Excel" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "PDF" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "PDF" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("نطاق العرض المعتمد")).toBeTruthy();
     expect(screen.getByText(/الملخص التنفيذي/)).toBeTruthy();
     const sdgFilter = screen.getAllByRole("combobox")[4];
@@ -81,8 +81,14 @@ describe("dashboard export and AI summary UI", () => {
     expect(screen.getByText("خريطة المؤشرات السياحية بالبلديات")).toBeTruthy();
     expect(screen.getByText("بحث عن بلدية")).toBeTruthy();
     expect(screen.getByText("تفاصيل البلدية")).toBeTruthy();
+    expect(screen.getByText("مفتاح التدرج الحراري")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "صورة" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "PDF" }).length).toBeGreaterThanOrEqual(1);
+    const municipalitySearch = screen.getByPlaceholderText("مثال: طرابلس");
+    fireEvent.change(municipalitySearch, { target: { value: "طر" } });
+    expect(screen.getByRole("option", { name: "طرابلس" })).toBeTruthy();
     expect(screen.getByText(/جاري تحميل طبقة حدود البلديات المرفقة|طبقة حدود البلديات الرسمية المعتمدة محملة/)).toBeTruthy();
-    expect(screen.getByText("طرابلس")).toBeTruthy();
+    expect(screen.getAllByText("طرابلس").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("2025")).toBeTruthy();
     expect(screen.queryByText("2.025")).toBeNull();
     const axisFilter = screen.getAllByRole("combobox")[2];
