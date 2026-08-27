@@ -61,6 +61,16 @@ describe("data assistant UI", () => {
     await waitFor(() => expect(window.localStorage.getItem("tidc-data-assistant-selected-v1")).toBe("[]"));
   });
 
+  it("يصفّي سجل المحادثات بشريط البحث ويعرض خيار Excel للمحدد", async () => {
+    window.localStorage.setItem("tidc-data-assistant-history-v1", JSON.stringify([{ id: 1, question: "ما أحدث مؤشر اقتصادي؟", answer: "إجابة اقتصادية", context: { axis: "اقتصادي", scope: "national", sources: ["تقرير رسمي"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }, { id: 2, question: "ما أحدث مؤشر سياحي؟", answer: "إجابة سياحية", context: { axis: "سياحي", scope: "spatial", sources: ["سجل مكاني"], counts: { approvedNationalAnnualRows: 0, approvedSpatialRows: 1, calculatedForecastPoints: 0 } } }]));
+    render(<DataAssistantPanel />);
+    const search = screen.getByRole("textbox", { name: "بحث في سجل المحادثات" });
+    fireEvent.change(search, { target: { value: "اقتصادي" } });
+    expect(screen.getByText("ما أحدث مؤشر اقتصادي؟")).toBeTruthy();
+    expect(screen.queryByText("ما أحدث مؤشر سياحي؟")).toBeNull();
+    expect(screen.getByRole("button", { name: "تصدير المحدد Excel" })).toBeTruthy();
+  });
+
   it("يعرض السجل ويتيح تصدير الإجابة مع مصادرها بعد نجاح الإجابة", async () => {
     render(<DataAssistantPanel />);
     const input = screen.getByPlaceholderText("اكتب سؤالاً عن الأرقام والمؤشرات المعتمدة…");
