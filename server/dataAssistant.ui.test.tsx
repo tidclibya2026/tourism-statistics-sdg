@@ -52,10 +52,11 @@ describe("data assistant UI", () => {
     window.localStorage.setItem("tidc-data-assistant-history-v1", JSON.stringify([{ id: 1, question: "سؤال أول", answer: "إجابة أولى", context: { axis: "اقتصادي", scope: "national", sources: ["تقرير رسمي"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }, { id: 2, question: "سؤال ثان", answer: "إجابة ثانية", context: { axis: "سياحي", scope: "spatial", sources: ["سجل مكاني"], counts: { approvedNationalAnnualRows: 0, approvedSpatialRows: 1, calculatedForecastPoints: 0 } } }]));
     window.localStorage.setItem("tidc-data-assistant-selected-v1", JSON.stringify([1]));
     render(<DataAssistantPanel />);
-    expect(screen.getByRole("button", { name: "تصدير المحدد (1)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "تصدير المحدد PDF (1)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "تصدير المحدد Excel" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "تحديد الكل" }));
     await waitFor(() => expect(window.localStorage.getItem("tidc-data-assistant-selected-v1")).toBe("[1,2]"));
-    expect(screen.getByRole("button", { name: "تصدير المحدد (2)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "تصدير المحدد PDF (2)" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "إلغاء تحديد الكل" }));
     await waitFor(() => expect(window.localStorage.getItem("tidc-data-assistant-selected-v1")).toBe("[]"));
   });
