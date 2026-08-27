@@ -13,7 +13,7 @@ const approvedRows = [
 ];
 
 vi.mock("@/lib/trpc", () => ({
-  trpc: { observations: { list: { useQuery: () => ({ data: approvedRows, isLoading: false, isError: false, refetch: vi.fn() }) } }, spatial: { overview: { useQuery: () => ({ data: spatialReportData, isLoading: false, isError: false, refetch: vi.fn() }) } }, dashboard: { narrative: { useMutation: () => ({ data: null, isPending: false, mutate: vi.fn() }) } } },
+  trpc: { auth: { administrativeCapabilities: { useQuery: () => ({ data: { canApproveReleases: false, canManageRoles: false, canReviewSecurity: false }, isLoading: false }) } }, observations: { list: { useQuery: () => ({ data: approvedRows, isLoading: false, isError: false, refetch: vi.fn() }) } }, spatial: { overview: { useQuery: () => ({ data: spatialReportData, isLoading: false, isError: false, refetch: vi.fn() }) } }, dashboard: { narrative: { useMutation: () => ({ data: null, isPending: false, mutate: vi.fn() }) }, signApprovedReport: { useMutation: () => ({ data: undefined, isPending: false, mutateAsync: vi.fn() }) } } },
 }));
 vi.mock("@/lib/dashboardPdf", () => ({ openPrintablePdf: exportPdf }));
 vi.mock("@/lib/reportExport", () => ({ toExcelReportRows: (rows: unknown[]) => rows.map((_, index) => ({ المؤشر: `صف ${index + 1}` })) }));

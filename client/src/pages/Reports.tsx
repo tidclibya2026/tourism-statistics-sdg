@@ -7,7 +7,8 @@ import { arabicNumber, asNumber, formatYear, periodLabel } from "@/lib/tourism";
 import { trpc } from "@/lib/trpc";
 import { openPrintablePdf } from "@/lib/dashboardPdf";
 import { toExcelReportRows } from "@/lib/reportExport";
-import { BarChart3, FileSpreadsheet, FileText, LineChart as LineChartIcon, LoaderCircle, MapPin, Printer, Sparkles } from "lucide-react";
+import { sha256Text } from "@/lib/reportSignature";
+import { BarChart3, CheckCircle2, FileSpreadsheet, FileText, LineChart as LineChartIcon, LoaderCircle, LockKeyhole, MapPin, Printer, ShieldCheck, Sparkles } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { readUserDisplayPreferences, saveUserDisplayPreferences, type PreferredChart } from "@/lib/userPreferences";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -21,7 +22,8 @@ export default function Reports() {
   const [yearTo, setYearTo] = useState(String(new Date().getFullYear()));
   const [chartMode, setChartMode] = useState<ChartMode>(() => readUserDisplayPreferences().chartType);
   const [areaId, setAreaId] = useState("all");
-  const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
+  const [exporting, setExporting] = useState<"excel" | "pdf" | "signed-pdf" | null>(null);
+  const [reportSignature, setReportSignature] = useState<Awaited<ReturnType<typeof trpc.dashboard.signApprovedReport.useMutation>>["data"]>(undefined);
   const reportRef = useRef<HTMLDivElement>(null);
   const spatialQuery = trpc.spatial.overview.useQuery({});
   const query = trpc.observations.list.useQuery({
@@ -32,6 +34,8 @@ export default function Reports() {
   const nationalData = query.data ?? [];
   const reportLoading = query.isLoading || spatialQuery.isLoading;
   const narrative = trpc.dashboard.narrative.useMutation();
+  const signReport = trpc.dashboard.signApprovedReport.useMutation();
+  const capabilities = trpc.auth.administrativeCapabilities.useQuery(undefined, { enabled: true, retry: false, refetchOnWindowFocus: false });
   const areaOptions = useMemo(() => [...(spatialQuery.data?.regions ?? []), ...(spatialQuery.data?.cities ?? [])], [spatialQuery.data]);
   const data = useMemo(() => {
     if (areaId === "all") return nationalData;
@@ -114,6 +118,28 @@ export default function Reports() {
     }
   }
 
+  async function signAndExportPdf() {
+    if (!reportRef.current || !data.length || !capabilities.data?.canApproveReleases) {
+      toast.error("توقيع التقرير متاح لرئيس الإحصاء أو المسؤول المفوض باعتماد الإصدارات فقط.");
+      return;
+    }
+    setExporting("signed-pdf");
+    try {
+      const contentHash = await sha256Text(reportRef.current.innerText);
+      const signed = await signReport.mutateAsync({ reportType: "approved-observations", title: "تقرير القياسات المعتمدة", yearFrom: Number(yearFrom), yearTo: Number(yearTo), observationCount: data.length, contentHash });
+      setReportSignature(signed);
+      window.setTimeout(() => {
+        if (reportRef.current) openPrintablePdf(reportRef.current, `تقرير-موقع-القياسات-${yearFrom}-${yearTo}.pdf`);
+      }, 0);
+      toast.success("تم توقيع التقرير رقمياً وفتح نافذة حفظ PDF.");
+    } catch (error) {
+      console.error("Signed report export failed", error);
+      toast.error("تعذر توقيع التقرير. تحقق من صلاحية اعتماد الإصدارات.");
+    } finally {
+      setExporting(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section>
@@ -136,6 +162,9 @@ export default function Reports() {
           <Button className="bg-[#0f5c58] hover:bg-[#0a4845]" onClick={exportPdf} disabled={Boolean(exporting) || reportLoading || !data.length} aria-busy={exporting === "pdf"}>
             {exporting === "pdf" ? <LoaderCircle className="ml-1.5 h-4 w-4 animate-spin" /> : <FileText className="ml-1.5 h-4 w-4" />}تصدير PDF
           </Button>
+          {capabilities.data?.canApproveReleases && <Button variant="outline" onClick={signAndExportPdf} disabled={Boolean(exporting) || reportLoading || !data.length} aria-busy={exporting === "signed-pdf"} className="border-[#b47730] text-[#8b5d24]">
+            {exporting === "signed-pdf" ? <LoaderCircle className="ml-1.5 h-4 w-4 animate-spin" /> : <ShieldCheck className="ml-1.5 h-4 w-4" />}توقيع وتصدير PDF
+          </Button>}
           <Button variant="outline" onClick={generateNarrative} disabled={reportLoading || narrative.isPending || !data.length} aria-busy={narrative.isPending}>
             {narrative.isPending ? <LoaderCircle className="ml-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="ml-1.5 h-4 w-4 text-amber-600" />}تحليل ذكي
           </Button>
@@ -151,6 +180,7 @@ export default function Reports() {
               <p className="text-xs font-bold tracking-[.16em] text-[#b47730]">المرصد الوطني للسياحة</p>
               <h2 className="mt-1 font-bold text-[#173f3d]">تقرير القياسات المعتمدة</h2>
               <p className="mt-1 text-xs text-slate-500">من {formatYear(yearFrom)} إلى {formatYear(yearTo)} · {arabicNumber.format(data.length)} قياس{selectedAreaName ? ` · ${selectedAreaName}` : ""}</p>
+              {reportSignature && <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#e8efec] pt-3 text-xs text-[#166534]" data-testid="report-digital-signature"><CheckCircle2 className="h-4 w-4" /><span>معتمد وموقّع رقمياً بواسطة {reportSignature.signerName}</span><span className="text-slate-500">{new Date(reportSignature.signedAt).toLocaleString("ar-LY")} · {reportSignature.algorithm} · بصمة {reportSignature.contentHash?.slice(0, 12)}</span></div>}
             </div>
             <div className="flex items-center gap-2 text-[#0f5c58]" aria-label="نوع الرسم التفاعلي">
               <Printer className="h-5 w-5" />

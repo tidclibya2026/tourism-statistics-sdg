@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { createReportSignature } from "./reportSignature";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -122,6 +123,12 @@ export const appRouter = router({
     })).mutation(({ input }) => answerDataQuestion(input)),
   }),
   dashboard: router({
+    signApprovedReport: protectedProcedure.input(z.object({ reportType: z.enum(["approved-observations", "approved-statistics"]), title: z.string().trim().min(1).max(200), yearFrom: z.number().int().min(1900).max(2100), yearTo: z.number().int().min(1900).max(2100), observationCount: z.number().int().nonnegative(), contentHash: z.string().trim().max(128).optional() })).mutation(async ({ ctx, input }) => {
+      const isOwner = Boolean(ENV.ownerOpenId) && ctx.user.openId === ENV.ownerOpenId;
+      const allowed = ctx.user.role === "admin" && (isOwner || await db.hasAdministrativeCapability(ctx.user.id, "canApproveReleases"));
+      if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "توقيع التقارير مقيد برئيس الإحصاء أو المسؤول المفوض باعتماد الإصدارات." });
+      return createReportSignature(input, { name: ctx.user.name ?? "رئيس الإحصاء", openId: ctx.user.openId });
+    }),
     summary: protectedProcedure.input(z.object({
       year: z.number().int().min(2000).max(2100).optional(),
       axis: axisSchema.optional(),

@@ -44,6 +44,7 @@ import {
   Moon,
   Sun,
   UserRound,
+  Library,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -67,6 +68,7 @@ const navigation: { icon: typeof LayoutDashboard; label: string; path: string; a
   { icon: MessagesSquare, label: "إدارة الدعم", path: "/support-admin", access: ["admin"] },
   { icon: UserRound, label: "الملف الشخصي والإعدادات", path: "/profile", access: ["admin", "analyst", "viewer"] },
   { icon: CircleHelp, label: "المساعدة والدعم", path: "/help", access: ["admin", "analyst", "viewer"] },
+  { icon: Library, label: "مكتبة الوثائق", path: "/documents", access: ["admin", "analyst", "viewer"] },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
