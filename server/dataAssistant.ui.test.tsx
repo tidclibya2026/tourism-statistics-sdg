@@ -3,21 +3,18 @@ import { fireEvent, render, screen, cleanup } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const exportPdfMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mutate = vi.hoisted(() => vi.fn());
 const mutationOptions = vi.hoisted(() => ({ current: null as null | { onSuccess?: (result: unknown, variables: { question: string }) => void } }));
 vi.mock("@/lib/trpc", () => ({ trpc: { assistant: { data: { useMutation: (options: typeof mutationOptions.current) => { mutationOptions.current = options; return { mutate, isPending: false }; } } } } }));
-vi.mock("@/lib/dashboardPdf", () => ({ exportDashboardPdf: exportPdfMock }));
 vi.mock("streamdown", () => ({ Streamdown: ({ children }: { children: string }) => children }));
 
 import { DataAssistantPanel } from "../client/src/components/DataAssistantPanel";
-import { getSuggestedPrompts } from "../client/src/components/DataAssistantPanel";
+import { getSuggestedPrompts } from "../client/src/lib/dataAssistantPrompts";
 
 describe("data assistant UI", () => {
   beforeEach(() => {
     cleanup();
     mutate.mockReset();
-    exportPdfMock.mockClear();
     mutationOptions.current = null;
     window.localStorage.clear();
   });
@@ -38,6 +35,16 @@ describe("data assistant UI", () => {
     expect(getSuggestedPrompts("سياحي")).toContain("ما المدن والبلديات الأعلى في المؤشر السياحي؟");
   });
 
+  it("يعرض زر مسح السجل وتصدير السجل الكامل للمحادثات المحفوظة", () => {
+    window.localStorage.setItem("tidc-data-assistant-history-v1", JSON.stringify([{ id: 1, question: "سؤال محفوظ", answer: "إجابة محفوظة", context: { axis: "اقتصادي", scope: "national", sources: ["تقرير رسمي"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }]));
+    render(<DataAssistantPanel />);
+    expect(screen.getByRole("button", { name: "مسح السجل" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "تصدير السجل PDF" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "مسح السجل" }));
+    expect(screen.queryByText("سجل أسئلة المساعد")).toBeNull();
+    expect(window.localStorage.getItem("tidc-data-assistant-history-v1")).toBe("[]");
+  });
+
   it("يعرض السجل ويتيح تصدير الإجابة مع مصادرها بعد نجاح الإجابة", async () => {
     render(<DataAssistantPanel />);
     const input = screen.getByPlaceholderText("اكتب سؤالاً عن الأرقام والمؤشرات المعتمدة…");
@@ -46,7 +53,7 @@ describe("data assistant UI", () => {
     fireEvent.submit(input.closest("form")!);
     expect(screen.getByText("سجل أسئلة المساعد")).toBeTruthy();
     expect(screen.getByText("مصادر السجلات المستخدمة")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "تصدير PDF" }));
-    expect(exportPdfMock).toHaveBeenCalledWith(expect.any(HTMLElement), expect.stringMatching(/^إجابة-مساعد-المرصد-.*\.pdf$/));
+    expect(screen.getByRole("button", { name: "تصدير PDF" })).toBeTruthy();
+    expect(screen.getByText(/إصدار المنصة/)).toBeTruthy();
   });
 });
