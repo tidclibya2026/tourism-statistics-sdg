@@ -1361,7 +1361,7 @@ function DashboardActivityMap({
             {year ? formatYear(year) : "أحدث سنة متاحة"}؛ انقر على العلامة لعرض
             التفاصيل.
           </p>
-          <p className={`mt-2 text-[11px] leading-5 ${boundaryReady ? "text-emerald-700" : "text-amber-700"}`}>{boundaryReady ? "طبقة حدود البلديات المرفقة محملة بعد تحويلها إلى WGS 84؛ وهي قيد الاعتماد الإداري. انقر على أي بلدية للتفاصيل." : "جاري تحميل طبقة حدود البلديات المرفقة؛ ستظهر بعد اكتمال التحقق من الملف."}</p>
+          <p className={`mt-2 text-[11px] leading-5 ${boundaryReady ? "text-emerald-700" : "text-amber-700"}`}>{boundaryReady ? "طبقة حدود البلديات الرسمية المعتمدة محملة بعد تحويلها إلى WGS 84؛ انقر على أي بلدية للتفاصيل." : "جاري تحميل طبقة حدود البلديات المرفقة؛ ستظهر بعد اكتمال التحقق من الملف."}</p>
         </div>
         <MapPinned className="h-5 w-5 text-[#b47730]" />
       </div>
