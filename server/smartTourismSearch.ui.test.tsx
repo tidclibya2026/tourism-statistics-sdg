@@ -32,6 +32,12 @@ afterEach(() => {
   mutationOptions.current = null;
 });
 
+vi.stubGlobal("ResizeObserver", class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+});
+
 describe("smart tourism search UI", () => {
   it("يرسل سؤالاً باللغة الطبيعية مع المحور والنطاق المختارين", () => {
     render(<SmartTourismSearch />);
@@ -68,6 +74,14 @@ describe("smart tourism search UI", () => {
             approvedSpatialRows: 3,
             calculatedForecastPoints: 0,
           },
+          visualizations: [{
+            id: "national-trend-visitors",
+            kind: "trend",
+            title: "الاتجاه الزمني: إجمالي الزوار",
+            description: "قياسات وطنية سنوية معتمدة",
+            unit: "عدد",
+            data: [{ label: "2024", value: 80 }, { label: "2025", value: 100 }],
+          }],
         },
       });
     });
@@ -75,5 +89,7 @@ describe("smart tourism search UI", () => {
     expect(screen.getByText("أحدث قياس معتمد هو ١٠٠.")).toBeTruthy();
     expect(screen.getByText(/تقرير رسمي/)).toBeTruthy();
     expect(screen.getByText(/قياساً مكانياً معتمداً/)).toBeTruthy();
+    expect(screen.getByText("قراءة بصرية للبيانات المعتمدة")).toBeTruthy();
+    expect(screen.getByLabelText("الاتجاه الزمني: إجمالي الزوار")).toBeTruthy();
   });
 });

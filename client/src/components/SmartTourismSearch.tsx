@@ -1,3 +1,4 @@
+import { AssistantMiniCharts, type AssistantMiniVisualization } from "@/components/AssistantMiniCharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +23,7 @@ type SearchResult = {
       approvedSpatialRows: number;
       calculatedForecastPoints: number;
     };
+    visualizations?: AssistantMiniVisualization[];
   };
 };
 
@@ -189,6 +191,7 @@ export function SmartTourismSearch() {
                 المصادر المستخدمة: {result.context.sources.join("، ")}
               </p>
             )}
+            <AssistantMiniCharts visualizations={result.context.visualizations ?? []} />
           </div>
         )}
       </CardContent>

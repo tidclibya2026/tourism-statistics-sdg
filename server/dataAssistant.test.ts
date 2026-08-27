@@ -37,6 +37,8 @@ describe("data assistant", () => {
     expect(context.national.approvedAnnualRows).toHaveLength(2);
     expect(context.spatial.approvedAnnualRows[0]).toMatchObject({ municipalityOrCity: "طرابلس", value: 100 });
     expect(context.forecasts.every((row) => row.type === "forecast")).toBe(true);
+    expect(context.visualizations.length).toBeGreaterThan(0);
+    expect(context.visualizations[0].data.every((point) => Number.isFinite(point.value))).toBe(true);
     expect(JSON.stringify(context)).not.toContain("draft");
   });
 
@@ -44,6 +46,7 @@ describe("data assistant", () => {
     invokeMock.mockResolvedValue({ choices: [{ message: { content: "ارتفعت قيمة إجمالي الزوار من 80 إلى 100." } }] });
     const result = await answerDataQuestion({ question: "ما اتجاه الزوار؟", history: [], axis: "اقتصادي", scope: "national" });
     expect(result.answer).toContain("ارتفعت");
+    expect(result.context.visualizations.length).toBeGreaterThan(0);
     expect(invokeMock).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-5-mini", maxTokens: 1200 }));
     const call = invokeMock.mock.calls[0][0];
     expect(call.messages[0].content).toContain("لا تستخدم معلومات خارجية");

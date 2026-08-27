@@ -22,6 +22,79 @@ type AssistantRow = {
   source: string | null;
 };
 
+export type AssistantVisualization = {
+  id: string;
+  kind: "trend" | "ranking" | "forecast";
+  title: string;
+  description: string;
+  unit: string;
+  data: Array<{ label: string; value: number }>;
+};
+
+function buildAssistantVisualizations(
+  approvedRows: AssistantRow[],
+  spatialRows: Array<{ municipalityOrCity: string; areaType: string; indicator: string; unit: string; year: number; value: number; source: string | null }>,
+  forecastRows: Array<AssistantRow & { type: "forecast"; baseYear: number; method: string }>,
+): AssistantVisualization[] {
+  const visualizations: AssistantVisualization[] = [];
+  const byIndicator = new Map<string, AssistantRow[]>();
+  approvedRows.forEach((row) => {
+    const rows = byIndicator.get(row.code) ?? [];
+    rows.push(row);
+    byIndicator.set(row.code, rows);
+  });
+  const longestTrend = Array.from(byIndicator.values()).sort((a: AssistantRow[], b: AssistantRow[]) => b.length - a.length || a[0].indicator.localeCompare(b[0].indicator))[0];
+  if (longestTrend && longestTrend.length >= 2) {
+    const ordered = longestTrend.slice().sort((a, b) => a.year - b.year);
+    visualizations.push({
+      id: `national-trend-${ordered[0].code}`,
+      kind: "trend",
+      title: `الاتجاه الزمني: ${ordered[0].indicator}`,
+      description: "قياسات وطنية سنوية معتمدة؛ يمكن تمرير المؤشر لعرض السنة والقيمة.",
+      unit: ordered[0].unit,
+      data: ordered.slice(-12).map((row: AssistantRow) => ({ label: String(row.year), value: row.value })),
+    });
+  }
+
+  const latestSpatialYear = spatialRows.reduce<number | null>((latest, row) => latest === null || row.year > latest ? row.year : latest, null);
+  if (latestSpatialYear !== null) {
+    const ranking = spatialRows
+      .filter((row) => row.year === latestSpatialYear)
+      .slice()
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+    if (ranking.length > 0) {
+      visualizations.push({
+        id: `spatial-ranking-${latestSpatialYear}`,
+        kind: "ranking",
+        title: `أعلى القياسات المكانية في ${latestSpatialYear}`,
+        description: "ترتيب مختصر للمدن والبلديات وفق أحدث قياس مكاني معتمد متاح.",
+        unit: ranking[0].unit,
+        data: ranking.map((row) => ({ label: row.municipalityOrCity, value: row.value })),
+      });
+    }
+  }
+
+  const byForecastIndicator = new Map<string, Array<AssistantRow & { type: "forecast"; baseYear: number; method: string }>>();
+  forecastRows.forEach((row) => {
+    const rows = byForecastIndicator.get(row.code) ?? [];
+    rows.push(row);
+    byForecastIndicator.set(row.code, rows);
+  });
+  const forecastSeries = Array.from(byForecastIndicator.values()).sort((a, b) => b.length - a.length)[0];
+  if (forecastSeries && forecastSeries.length > 0) {
+    visualizations.push({
+      id: `forecast-${forecastSeries[0].code}`,
+      kind: "forecast",
+      title: `التنبؤ المحسوب: ${forecastSeries[0].indicator}`,
+      description: "نقاط محسوبة من تاريخ سنوي معتمد باستخدام CAGR؛ ليست قياسات فعلية.",
+      unit: forecastSeries[0].unit,
+      data: forecastSeries.slice().sort((a, b) => a.year - b.year).map((row: AssistantRow & { type: "forecast"; baseYear: number; method: string }) => ({ label: String(row.year), value: row.value })),
+    });
+  }
+  return visualizations;
+}
+
 function isTourismIndicator(indicator: { name: string; code: string }) {
   return /سياح|سياح|سياحي|زوار|إقامة|فنادق|مطاعم|مرشد|موقع|استثمار|شركات|مرافق|غرف|أسرة/i.test(`${indicator.name} ${indicator.code}`);
 }
@@ -84,6 +157,7 @@ export async function buildDataAssistantContext(input: Pick<DataAssistantInput, 
   const includeNational = input.scope !== "spatial";
   const includeSpatial = input.scope !== "national" && input.scope !== "forecast";
   const sources = Array.from(new Set([...approvedRows.map((row) => row.source), ...spatialRows.map((row) => row.source)].filter((source): source is string => Boolean(source)))).slice(0, 20);
+  const visualizations = buildAssistantVisualizations(approvedRows, spatialRows, forecastRows);
   const context = {
     policy: "مصدر البيانات الوحيد هو سجلات المنصة المعتمدة. لا تُستخدم المسودات أو القياسات قيد المراجعة أو مصادر الإنترنت.",
     scope: input.scope ?? "all",
@@ -91,6 +165,7 @@ export async function buildDataAssistantContext(input: Pick<DataAssistantInput, 
     national: includeNational ? { summary: dashboard.summary, availableYears: dashboard.availableYears, latest: dashboard.latest, growth: dashboard.indicatorGrowth, approvedAnnualRows: latestRows } : null,
     spatial: includeSpatial ? { summary: spatial.summary, availableYears: spatial.availableYears, approvedAnnualRows: spatialRows } : null,
     forecasts: input.scope === "national" || input.scope === "spatial" ? [] : forecastRows,
+    visualizations,
     sources,
     counts: { approvedNationalAnnualRows: approvedRows.length, approvedSpatialRows: spatialRows.length, calculatedForecastPoints: forecastRows.length },
   };
@@ -112,7 +187,7 @@ export async function answerDataQuestion(input: DataAssistantInput) {
   const content = response.choices[0]?.message?.content;
   const answer = typeof content === "string" ? content.trim() : "";
   if (!answer) throw new Error("تعذر الحصول على إجابة من المساعد الذكي في الوقت الحالي.");
-  return { answer, context: { axis: input.axis ?? "كل المحاور", scope: input.scope ?? "all", sources: context.sources, counts: context.counts } };
+  return { answer, context: { axis: input.axis ?? "كل المحاور", scope: input.scope ?? "all", sources: context.sources, counts: context.counts, visualizations: context.visualizations } };
 }
 
 export function isDataAssistantQuestionAllowed(question: string) {
