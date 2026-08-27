@@ -38,6 +38,17 @@ shared/                 تحقق الوحدات ونماذج البيانات ا
 storage/                أدوات التخزين الآمن
 ```
 
+## الأدلة التشغيلية والمعمارية
+
+| الوثيقة | الجمهور والغرض |
+|---|---|
+| [`platform_architecture_and_data_model_ar.md`](./platform_architecture_and_data_model_ar.md) | المعمارية، طبقات النظام، نموذج قاعدة البيانات، العلاقات، الهيكل التنظيمي وحدود الجاهزية. |
+| [`security_officer_guide_ar.md`](./security_officer_guide_ar.md) | مسؤول الأمن: الصلاحيات، حماية البيانات، مراجعة التبعيات، النسخ الاحتياطي والاستجابة للحوادث. |
+| [`statistics_chief_user_guide_ar.md`](./statistics_chief_user_guide_ar.md) | رئيس الإحصاء: تعريف المؤشر، المراجعة المستقلة، الاعتماد، التنبؤ والتقارير. |
+| [`end_to_end_operating_manual_ar.md`](./end_to_end_operating_manual_ar.md) | الدليل من أول إدخال أو استيراد الإحصائية حتى الاعتماد والتحليل والخريطة والتصدير والنشر الداخلي. |
+| [`deployment-backup-development-guide-ar.md`](./deployment-backup-development-guide-ar.md) | التشغيل المحلي، النسخ الاحتياطي، التطوير، الاختبارات والانتقال المستقبلي. |
+| [`internal_use_and_publication_policy.md`](./internal_use_and_publication_policy.md) | سياسة الاستخدام الداخلي وضوابط أي نشر خارجي مستقبلي. |
+
 ## التشغيل المحلي
 
 ### المتطلبات
