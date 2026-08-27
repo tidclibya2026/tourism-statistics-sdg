@@ -39,8 +39,10 @@ describe("data assistant UI", () => {
     window.localStorage.setItem("tidc-data-assistant-history-v1", JSON.stringify([{ id: 1, question: "سؤال محفوظ", answer: "إجابة محفوظة", context: { axis: "اقتصادي", scope: "national", sources: ["تقرير رسمي"], counts: { approvedNationalAnnualRows: 1, approvedSpatialRows: 0, calculatedForecastPoints: 0 } } }]));
     render(<DataAssistantPanel />);
     expect(screen.getByRole("button", { name: "مسح السجل" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "تصدير السجل PDF" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "تصدير الكل PDF" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "مسح السجل" }));
+    expect(screen.getByText("تأكيد مسح سجل المساعد")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "نعم، مسح السجل بالكامل" }));
     expect(screen.queryByText("سجل أسئلة المساعد")).toBeNull();
     expect(window.localStorage.getItem("tidc-data-assistant-history-v1")).toBe("[]");
   });

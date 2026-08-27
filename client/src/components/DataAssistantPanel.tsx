@@ -1,4 +1,6 @@
 import { AIChatBox, type Message } from "@/components/AIChatBox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { exportDashboardPdf } from "@/lib/dashboardPdf";
 import { getSuggestedPrompts, suggestedPromptsByAxis } from "@/lib/dataAssistantPrompts";
 import { trpc } from "@/lib/trpc";
-import { Database, Download, FileText, History, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { Database, Download, FileText, History, Loader2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -28,6 +30,9 @@ export function DataAssistantPanel() {
   const [activeExchange, setActiveExchange] = useState<AssistantExchange | null>(null);
   const [platformVersion, setPlatformVersion] = useState("غير متاح");
   const [exportedAt, setExportedAt] = useState("");
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState<number[]>([]);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [axis, setAxis] = useState<"all" | "اقتصادي" | "اجتماعي" | "بيئي" | "سياحي">("all");
   const [scope, setScope] = useState<"all" | "national" | "spatial" | "forecast">("all");
   const exportRef = useRef<HTMLDivElement>(null);
@@ -52,27 +57,28 @@ export function DataAssistantPanel() {
   }
 
   async function exportActiveAnswer() {
-    if (!activeExchange || !exportRef.current) { toast.info("أرسل سؤالاً أو اختر إجابة من السجل أولاً."); return; }
+    if (!activeExchange || !exportRef.current || isExporting) { if (!activeExchange) toast.info("أرسل سؤالاً أو اختر إجابة من السجل أولاً."); return; }
+    setIsExporting(true);
     try { setExportedAt(new Date().toLocaleString("ar-LY")); await exportDashboardPdf(exportRef.current, `إجابة-مساعد-المرصد-${activeExchange.id}.pdf`); toast.success("تم تجهيز إجابة المساعد مع مصادر البيانات للحفظ بصيغة PDF."); }
     catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تجهيز ملف PDF."); }
+    finally { setIsExporting(false); }
   }
 
-  async function exportAllHistory() {
-    if (!history.length) { toast.info("لا يوجد سجل محادثات لتصديره بعد."); return; }
-    const root = document.createElement("div");
-    root.dir = "rtl";
-    root.style.cssText = "position:fixed;left:-10000px;top:0;width:900px;background:#fff;color:#173f3d;padding:32px;font-family:Arial,sans-serif;";
+  async function exportHistoryItems(items: AssistantExchange[], filePrefix: string) {
+    if (!items.length || isExporting) { if (!items.length) toast.info("حدد محادثة واحدة على الأقل للتصدير."); return; }
+    setIsExporting(true);
+    const root = document.createElement("div"); root.dir = "rtl"; root.style.cssText = "position:fixed;left:-10000px;top:0;width:900px;background:#fff;color:#173f3d;padding:32px;font-family:Arial,sans-serif;";
     const title = document.createElement("h1"); title.textContent = "سجل مساعد بيانات المرصد"; title.style.cssText = "margin:0 0 8px;font-size:24px";
     const meta = document.createElement("p"); meta.textContent = `تاريخ التصدير: ${new Date().toLocaleString("ar-LY")} · إصدار المنصة: ${platformVersion}`; meta.style.cssText = "margin:0 0 24px;color:#64748b;font-size:12px";
     root.append(title, meta);
-    history.slice().reverse().forEach((item, index) => { const article = document.createElement("article"); article.style.cssText = "border-top:1px solid #dce8e4;padding:18px 0;"; const question = document.createElement("p"); question.textContent = `${index + 1}. السؤال: ${item.question}`; question.style.cssText = "font-weight:700;margin:0 0 8px"; const answer = document.createElement("div"); answer.textContent = item.answer; answer.style.cssText = "white-space:pre-wrap;line-height:1.8"; const details = document.createElement("p"); details.textContent = `المحور: ${item.context.axis} · النطاق: ${item.context.scope}\nالمصادر: ${item.context.sources.length ? item.context.sources.join("، ") : "لا يوجد مصدر نصي محدد"}`; details.style.cssText = "font-size:11px;color:#64748b;margin:12px 0 0;white-space:pre-wrap"; article.append(question, answer, details); root.append(article); });
+    items.slice().reverse().forEach((item, index) => { const article = document.createElement("article"); article.style.cssText = "border-top:1px solid #dce8e4;padding:18px 0;"; const question = document.createElement("p"); question.textContent = `${index + 1}. السؤال: ${item.question}`; question.style.cssText = "font-weight:700;margin:0 0 8px"; const answer = document.createElement("div"); answer.textContent = item.answer; answer.style.cssText = "white-space:pre-wrap;line-height:1.8"; const details = document.createElement("p"); details.textContent = `المحور: ${item.context.axis} · النطاق: ${item.context.scope}\nالمصادر: ${item.context.sources.length ? item.context.sources.join("، ") : "لا يوجد مصدر نصي محدد"}`; details.style.cssText = "font-size:11px;color:#64748b;margin:12px 0 0;white-space:pre-wrap"; article.append(question, answer, details); root.append(article); });
     document.body.append(root);
-    try { await exportDashboardPdf(root, `سجل-مساعد-المرصد-${Date.now()}.pdf`); toast.success("تم تجهيز سجل المحادثات الكامل بصيغة PDF."); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تجهيز سجل المحادثات."); } finally { root.remove(); }
+    try { await exportDashboardPdf(root, `${filePrefix}-${Date.now()}.pdf`); toast.success(`تم تجهيز ${items.length} محادثة بصيغة PDF.`); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تجهيز سجل المحادثات."); } finally { root.remove(); setIsExporting(false); }
   }
 
-  function clearHistory() {
-    setHistory([]); setMessages([]); setActiveExchange(null); window.localStorage.removeItem(historyStorageKey); toast.success("تم مسح سجل أسئلة وإجابات المساعد.");
-  }
+  function exportAllHistory() { void exportHistoryItems(history, "سجل-مساعد-المرصد"); }
+  function exportSelectedHistory() { void exportHistoryItems(history.filter((item) => selectedHistoryIds.includes(item.id)), "محادثات-مساعد-المرصد"); }
+  function clearHistory() { setHistory([]); setSelectedHistoryIds([]); setMessages([]); setActiveExchange(null); window.localStorage.removeItem(historyStorageKey); toast.success("تم مسح سجل أسئلة وإجابات المساعد."); setClearDialogOpen(false); }
 
   function openHistory(item: AssistantExchange) {
     setActiveExchange(item);
@@ -86,9 +92,10 @@ export function DataAssistantPanel() {
     </CardHeader>
     <CardContent className="p-0">
       <AIChatBox messages={messages} onSendMessage={send} isLoading={assistant.isPending} height="520px" placeholder="اكتب سؤالاً عن الأرقام والمؤشرات المعتمدة…" emptyStateMessage="اسأل عن المؤشرات والإحصائيات والتنبؤات أو المدن والبلديات" suggestedPrompts={[...suggestedPrompts]} />
-      {activeExchange && <div ref={exportRef} className="mx-4 mb-4 rounded-xl border border-[#dce8e4] bg-white p-4 text-right"><div className="border-b border-[#e8efec] pb-3 text-[11px] text-slate-500">تاريخ التصدير: {exportedAt || "يُحدد عند التصدير"} · إصدار المنصة: {platformVersion}</div><div className="mt-3 flex items-center justify-between gap-3"><div><p className="text-[11px] font-semibold text-[#0f766e]">إجابة مساعد بيانات المرصد</p><p className="mt-1 text-xs text-slate-500">السؤال: {activeExchange.question}</p></div><Button size="sm" onClick={exportActiveAnswer} className="bg-[#0f766e] hover:bg-[#0a5f58]"><Download className="ml-1 h-3.5 w-3.5" />تصدير PDF</Button></div><div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{activeExchange.answer}</div><div className="mt-4 border-t border-[#e8efec] pt-3 text-xs text-slate-600"><p className="font-semibold text-[#173f3d]">مصادر السجلات المستخدمة</p>{activeExchange.context.sources.length ? <ul className="mt-1 list-disc space-y-1 pr-5">{activeExchange.context.sources.map((source) => <li key={source}>{source}</li>)}</ul> : <p className="mt-1">لم تُرجع السجلات مصدراً نصياً محدداً ضمن النطاق المختار.</p>}<p className="mt-2 text-[11px] text-slate-500">النطاق: {activeExchange.context.scope} · المحور: {activeExchange.context.axis} · القياسات الوطنية: {activeExchange.context.counts.approvedNationalAnnualRows} · المكانية: {activeExchange.context.counts.approvedSpatialRows} · نقاط التنبؤ: {activeExchange.context.counts.calculatedForecastPoints}</p></div></div>}
+      {activeExchange && <div ref={exportRef} className="mx-4 mb-4 rounded-xl border border-[#dce8e4] bg-white p-4 text-right"><div className="border-b border-[#e8efec] pb-3 text-[11px] text-slate-500">تاريخ التصدير: {exportedAt || "يُحدد عند التصدير"} · إصدار المنصة: {platformVersion}</div><div className="mt-3 flex items-center justify-between gap-3"><div><p className="text-[11px] font-semibold text-[#0f766e]">إجابة مساعد بيانات المرصد</p><p className="mt-1 text-xs text-slate-500">السؤال: {activeExchange.question}</p></div><Button size="sm" onClick={exportActiveAnswer} disabled={isExporting} className="bg-[#0f766e] hover:bg-[#0a5f58]">{isExporting ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <Download className="ml-1 h-3.5 w-3.5" />}{isExporting ? "جاري إنشاء PDF…" : "تصدير PDF"}</Button></div><div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{activeExchange.answer}</div><div className="mt-4 border-t border-[#e8efec] pt-3 text-xs text-slate-600"><p className="font-semibold text-[#173f3d]">مصادر السجلات المستخدمة</p>{activeExchange.context.sources.length ? <ul className="mt-1 list-disc space-y-1 pr-5">{activeExchange.context.sources.map((source) => <li key={source}>{source}</li>)}</ul> : <p className="mt-1">لم تُرجع السجلات مصدراً نصياً محدداً ضمن النطاق المختار.</p>}<p className="mt-2 text-[11px] text-slate-500">النطاق: {activeExchange.context.scope} · المحور: {activeExchange.context.axis} · القياسات الوطنية: {activeExchange.context.counts.approvedNationalAnnualRows} · المكانية: {activeExchange.context.counts.approvedSpatialRows} · نقاط التنبؤ: {activeExchange.context.counts.calculatedForecastPoints}</p></div></div>}
       <div className="flex flex-wrap items-center gap-2 border-t border-[#e4efeb] bg-[#f7fbf9] px-4 py-3 text-[11px] text-slate-600"><Database className="h-4 w-4 text-[#0f766e]" /><span>الأسئلة المقترحة تتغير حسب المحور: {axis === "all" ? "كل المحاور" : axis}</span><Badge variant="outline">{suggestedPrompts.length} اقتراحات</Badge>{activeExchange && <Badge variant="outline">المصادر: {activeExchange.context.sources.length}</Badge>}</div>
-      {history.length > 0 && <section className="border-t border-[#e4efeb] bg-[#fbfdfc] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><History className="h-4 w-4 text-[#0f766e]" /><h3 className="text-sm font-bold text-[#173f3d]">سجل أسئلة المساعد</h3><span className="text-[11px] text-slate-500">({history.length})</span></div><div className="flex gap-2"><Button size="sm" variant="outline" className="border-[#b9d7cf] text-[#0f766e]" onClick={exportAllHistory}><FileText className="ml-1 h-3.5 w-3.5" />تصدير السجل PDF</Button><Button size="sm" variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" onClick={clearHistory}><Trash2 className="ml-1 h-3.5 w-3.5" />مسح السجل</Button></div></div><div className="mt-3 space-y-2">{history.map((item) => <article key={item.id} className="rounded-xl border border-[#dce8e4] bg-white p-3"><p className="text-xs font-semibold text-[#173f3d]">{item.question}</p><p className="mt-1 line-clamp-2 text-xs leading-6 text-slate-600">{item.answer}</p><Button size="sm" variant="outline" className="mt-2 border-[#b9d7cf] text-[#0f766e]" onClick={() => openHistory(item)}>عرض الإجابة والمصادر</Button></article>)}</div></section>}
+      {history.length > 0 && <section className="border-t border-[#e4efeb] bg-[#fbfdfc] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><History className="h-4 w-4 text-[#0f766e]" /><h3 className="text-sm font-bold text-[#173f3d]">سجل أسئلة المساعد</h3><span className="text-[11px] text-slate-500">({history.length})</span></div><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={isExporting} className="border-[#b9d7cf] text-[#0f766e]" onClick={exportAllHistory}>{isExporting ? <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" /> : <FileText className="ml-1 h-3.5 w-3.5" />}{isExporting ? "جاري التصدير…" : "تصدير الكل PDF"}</Button><Button size="sm" variant="outline" disabled={isExporting || !selectedHistoryIds.length} className="border-[#b9d7cf] text-[#0f766e]" onClick={exportSelectedHistory}><Download className="ml-1 h-3.5 w-3.5" />تصدير المحدد ({selectedHistoryIds.length})</Button><Button size="sm" variant="outline" disabled={isExporting} className="border-red-200 text-red-700 hover:bg-red-50" onClick={() => setClearDialogOpen(true)}><Trash2 className="ml-1 h-3.5 w-3.5" />مسح السجل</Button></div></div><p className="mt-2 text-[11px] text-slate-500">حدد المحادثات التي تريد تضمينها في ملف PDF.</p><div className="mt-3 space-y-2">{history.map((item) => <article key={item.id} className="flex gap-3 rounded-xl border border-[#dce8e4] bg-white p-3"><Checkbox checked={selectedHistoryIds.includes(item.id)} onCheckedChange={(checked) => setSelectedHistoryIds((current) => checked ? (current.includes(item.id) ? current : [...current, item.id]) : current.filter((id) => id !== item.id))} aria-label={`تحديد المحادثة: ${item.question}`} /><div className="min-w-0 flex-1"><p className="text-xs font-semibold text-[#173f3d]">{item.question}</p><p className="mt-1 line-clamp-2 text-xs leading-6 text-slate-600">{item.answer}</p><Button size="sm" variant="outline" className="mt-2 border-[#b9d7cf] text-[#0f766e]" onClick={() => openHistory(item)}>عرض الإجابة والمصادر</Button></div></article>)}</div></section>}
+      <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}><AlertDialogContent dir="rtl"><AlertDialogHeader><AlertDialogTitle>تأكيد مسح سجل المساعد</AlertDialogTitle><AlertDialogDescription>سيتم حذف جميع الأسئلة والإجابات المحفوظة على هذا المتصفح، ولا يمكن التراجع عن هذا الإجراء. هل تريد المتابعة؟</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>إلغاء</AlertDialogCancel><AlertDialogAction className="bg-red-700 hover:bg-red-800" onClick={clearHistory}>نعم، مسح السجل بالكامل</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </CardContent>
   </Card>;
 }
