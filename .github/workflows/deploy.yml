@@ -1,0 +1,54 @@
+name: CD - protected deployment
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "هدف النشر"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Trigger protected production deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+    steps:
+      - name: Validate release ref
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${GITHUB_REF_NAME}" != v* ]]; then
+            echo "Only version tags are allowed to deploy."
+            exit 1
+          fi
+
+      - name: Trigger hosting provider webhook
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          test -n "$DEPLOY_WEBHOOK_URL" || {
+            echo "DEPLOY_WEBHOOK_URL is not configured in the protected production environment."
+            exit 1
+          }
+          curl --fail --silent --show-error --request POST \
+            --header "Content-Type: application/json" \
+            --data "{\"repository\":\"${GITHUB_REPOSITORY}\",\"ref\":\"${GITHUB_REF}\",\"sha\":\"${COMMIT_SHA}\"}" \
+            "$DEPLOY_WEBHOOK_URL"
+
+      - name: Deployment handoff
+        run: echo "Deployment request accepted by the configured hosting provider; verify its deployment status before announcing production availability."
