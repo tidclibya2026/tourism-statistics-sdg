@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { createReportSignature, verifyReportSignature } from "./reportSignature";
+import { assertPkiReady, createReportSignature, getPkiIntegrationStatus, verifyReportSignature } from "./reportSignature";
 import { ENV } from "./_core/env";
 
 describe("report digital signature", () => {
@@ -9,6 +9,20 @@ describe("report digital signature", () => {
     const signed = createReportSignature({ reportType: "approved-observations", title: "تقرير القياسات", yearFrom: 2024, yearTo: 2025, observationCount: 12 }, { name: "رئيس الإحصاء", openId: "chief-1" }, "2026-08-27T10:00:00.000Z");
     expect(signed.algorithm).toBe("HMAC-SHA256");
     expect(verifyReportSignature(signed)).toBe(true);
+  });
+
+  it("reports PKI as disabled by default and blocks external signing", () => {
+    const previousEnabled = process.env.PKI_INTEGRATION_ENABLED;
+    const previousCertificate = process.env.PKI_CERTIFICATE_PEM;
+    const previousKey = process.env.PKI_PRIVATE_KEY_PEM;
+    delete process.env.PKI_INTEGRATION_ENABLED;
+    delete process.env.PKI_CERTIFICATE_PEM;
+    delete process.env.PKI_PRIVATE_KEY_PEM;
+    expect(getPkiIntegrationStatus()).toMatchObject({ enabled: false, configured: false });
+    expect(() => assertPkiReady()).toThrow("تكامل PKI غير مفعّل");
+    if (previousEnabled === undefined) delete process.env.PKI_INTEGRATION_ENABLED; else process.env.PKI_INTEGRATION_ENABLED = previousEnabled;
+    if (previousCertificate === undefined) delete process.env.PKI_CERTIFICATE_PEM; else process.env.PKI_CERTIFICATE_PEM = previousCertificate;
+    if (previousKey === undefined) delete process.env.PKI_PRIVATE_KEY_PEM; else process.env.PKI_PRIVATE_KEY_PEM = previousKey;
   });
 
   it("rejects a signature after report metadata is changed", () => {

@@ -73,6 +73,25 @@ export const administrativeAccessEvents = mysqlTable(
   ],
 );
 
+/** Immutable audit events for documentation access and report-signing operations. */
+export const documentAuditEvents = mysqlTable(
+  "documentAuditEvents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    actorUserId: int("actorUserId").references(() => users.id, { onDelete: "set null" }),
+    action: mysqlEnum("action", ["document_download", "documentation_zip_export", "report_signed", "pki_signature_attempt"]).notNull(),
+    outcome: mysqlEnum("outcome", ["success", "denied", "failed"]).notNull(),
+    resource: varchar("resource", { length: 255 }).notNull(),
+    details: text("details"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("document_audit_actor_idx").on(table.actorUserId),
+    index("document_audit_action_idx").on(table.action),
+    index("document_audit_created_idx").on(table.createdAt),
+  ],
+);
+
 /** Immutable summaries from manual or scheduled dependency vulnerability reviews. */
 export const dependencyReviewRuns = mysqlTable(
   "dependencyReviewRuns",

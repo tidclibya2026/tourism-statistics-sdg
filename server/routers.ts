@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { createReportSignature } from "./reportSignature";
+import { createReportSignature, getPkiIntegrationStatus } from "./reportSignature";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -122,12 +122,22 @@ export const appRouter = router({
       scope: z.enum(["all", "national", "spatial", "forecast"]).optional(),
     })).mutation(({ input }) => answerDataQuestion(input)),
   }),
+  documentAudit: router({
+    pkiStatus: securityReviewProcedure.query(() => getPkiIntegrationStatus()),
+    record: protectedProcedure.input(z.object({ action: z.enum(["document_download", "documentation_zip_export"]), outcome: z.enum(["success", "failed"]), resource: z.string().trim().min(1).max(255), details: z.string().max(2000).optional() })).mutation(async ({ ctx, input }) => {
+      await db.recordDocumentAuditEvent({ actorUserId: ctx.user.id, ...input });
+      return { success: true } as const;
+    }),
+    list: adminProcedure.input(z.object({ limit: z.number().int().positive().max(500).optional() }).optional()).query(({ input }) => db.listDocumentAuditEvents(input?.limit ?? 200)),
+  }),
   dashboard: router({
     signApprovedReport: protectedProcedure.input(z.object({ reportType: z.enum(["approved-observations", "approved-statistics"]), title: z.string().trim().min(1).max(200), yearFrom: z.number().int().min(1900).max(2100), yearTo: z.number().int().min(1900).max(2100), observationCount: z.number().int().nonnegative(), contentHash: z.string().trim().max(128).optional() })).mutation(async ({ ctx, input }) => {
       const isOwner = Boolean(ENV.ownerOpenId) && ctx.user.openId === ENV.ownerOpenId;
       const allowed = ctx.user.role === "admin" && (isOwner || await db.hasAdministrativeCapability(ctx.user.id, "canApproveReleases"));
       if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "توقيع التقارير مقيد برئيس الإحصاء أو المسؤول المفوض باعتماد الإصدارات." });
-      return createReportSignature(input, { name: ctx.user.name ?? "رئيس الإحصاء", openId: ctx.user.openId });
+      const signed = createReportSignature(input, { name: ctx.user.name ?? "رئيس الإحصاء", openId: ctx.user.openId });
+      await db.recordDocumentAuditEvent({ actorUserId: ctx.user.id, action: "report_signed", outcome: "success", resource: input.title, details: JSON.stringify({ reportType: input.reportType, yearFrom: input.yearFrom, yearTo: input.yearTo, observationCount: input.observationCount, contentHash: input.contentHash ?? null, signature: signed.signature }) });
+      return signed;
     }),
     summary: protectedProcedure.input(z.object({
       year: z.number().int().min(2000).max(2100).optional(),

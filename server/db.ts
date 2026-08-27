@@ -5,6 +5,7 @@ import {
   administrativeMembers,
   dependencyReviewRuns,
   dependencyReviewSchedules,
+  documentAuditEvents,
   helpContentRatings,
   type InsertIndicator,
   type InsertIndicatorObservation,
@@ -48,6 +49,21 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+export type DocumentAuditAction = "document_download" | "documentation_zip_export" | "report_signed" | "pki_signature_attempt";
+export type DocumentAuditOutcome = "success" | "denied" | "failed";
+
+export async function recordDocumentAuditEvent(values: { actorUserId?: number | null; action: DocumentAuditAction; outcome: DocumentAuditOutcome; resource: string; details?: string | null }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(documentAuditEvents).values({ actorUserId: values.actorUserId ?? null, action: values.action, outcome: values.outcome, resource: values.resource, details: values.details ?? null });
+}
+
+export async function listDocumentAuditEvents(limit = 200) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: documentAuditEvents.id, actorUserId: documentAuditEvents.actorUserId, action: documentAuditEvents.action, outcome: documentAuditEvents.outcome, resource: documentAuditEvents.resource, details: documentAuditEvents.details, createdAt: documentAuditEvents.createdAt, actorName: users.name, actorEmail: users.email }).from(documentAuditEvents).leftJoin(users, eq(documentAuditEvents.actorUserId, users.id)).orderBy(desc(documentAuditEvents.createdAt)).limit(Math.min(Math.max(limit, 1), 500));
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {

@@ -10,6 +10,22 @@ export type ReportSignatureInput = {
   contentHash?: string;
 };
 
+export type PkiIntegrationStatus = { enabled: boolean; configured: boolean; message: string };
+
+export function getPkiIntegrationStatus(): PkiIntegrationStatus {
+  const enabled = process.env.PKI_INTEGRATION_ENABLED === "true";
+  const configured = Boolean(process.env.PKI_CERTIFICATE_PEM && process.env.PKI_PRIVATE_KEY_PEM);
+  if (!enabled) return { enabled: false, configured, message: "تكامل PKI غير مفعّل؛ التوقيع الحالي داخلي HMAC-SHA256 فقط." };
+  if (!configured) return { enabled: true, configured: false, message: "تكامل PKI مفعّل نظرياً لكنه متوقف حتى توفير شهادة المؤسسة والمفتاح الخاص عبر مخزن أسرار معتمد." };
+  return { enabled: true, configured: true, message: "تم ضبط مدخلات PKI؛ يلزم ربط مزود التوقيع المؤسسي والتحقق من سلسلة الشهادة قبل الاعتماد الخارجي." };
+}
+
+export function assertPkiReady() {
+  const status = getPkiIntegrationStatus();
+  if (!status.enabled || !status.configured) throw new Error(status.message);
+  throw new Error("طبقة PKI جاهزة كإطار تكامل فقط، ولم يتم تفعيل توقيع خارجي قبل اعتماد مزود المؤسسة.");
+}
+
 export type ReportSignature = ReportSignatureInput & {
   signerName: string;
   signerOpenId: string;
