@@ -15,6 +15,7 @@ import {
   downloadDashboardWorkbook,
 } from "@/lib/dashboardDownload";
 import { exportDashboardPdf, exportElementPng } from "@/lib/dashboardPdf";
+import { SmartTourismSearch } from "@/components/SmartTourismSearch";
 import { Streamdown } from "streamdown";
 import html2canvas from "html2canvas";
 import {
@@ -361,7 +362,7 @@ export default function Home() {
           <label>
             <span className="field-label">السنة</span>
             <Select value={year} onValueChange={setYear}>
-              <SelectTrigger className="w-full sm:w-28">
+              <SelectTrigger className="w-full sm:w-28" aria-label="سنة لوحة المؤشرات">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -377,7 +378,7 @@ export default function Home() {
           <label>
             <span className="field-label">المنطقة / المدينة</span>
             <Select value={areaId} onValueChange={setAreaId}>
-              <SelectTrigger className="w-full sm:w-40">
+              <SelectTrigger className="w-full sm:w-40" aria-label="منطقة لوحة المؤشرات">
                 <MapPin className="ml-1.5 h-4 w-4 text-[#0f766e]" />
                 <SelectValue />
               </SelectTrigger>
@@ -394,7 +395,7 @@ export default function Home() {
           <label>
             <span className="field-label">المحور</span>
             <Select value={axis} onValueChange={setAxis}>
-              <SelectTrigger className="w-full sm:w-28">
+              <SelectTrigger className="w-full sm:w-28" aria-label="محور لوحة المؤشرات">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -408,7 +409,7 @@ export default function Home() {
           <label>
             <span className="field-label">الإطار</span>
             <Select value={framework} onValueChange={setFramework}>
-              <SelectTrigger className="w-full sm:w-28">
+              <SelectTrigger className="w-full sm:w-28" aria-label="إطار لوحة المؤشرات">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -421,7 +422,7 @@ export default function Home() {
           <label>
             <span className="field-label">هدف التنمية</span>
             <Select value={sdgReference} onValueChange={setSdgReference}>
-              <SelectTrigger className="w-full sm:w-32">
+              <SelectTrigger className="w-full sm:w-32" aria-label="هدف التنمية في لوحة المؤشرات">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -449,6 +450,8 @@ export default function Home() {
           </Button>
         </div>
       </section>
+
+      <SmartTourismSearch />
 
       <section className="section-card flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -674,7 +677,7 @@ export default function Home() {
             <label>
               <span className="field-label">المؤشر الأول</span>
               <Select value={indicatorAId} onValueChange={setIndicatorAId}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="المؤشر الأول في المقارنة">
                   <SelectValue placeholder="اختر المؤشر الأول" />
                 </SelectTrigger>
                 <SelectContent>
@@ -690,7 +693,7 @@ export default function Home() {
             <label>
               <span className="field-label">المؤشر الثاني</span>
               <Select value={indicatorBId} onValueChange={setIndicatorBId}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="المؤشر الثاني في المقارنة">
                   <SelectValue placeholder="اختر المؤشر الثاني" />
                 </SelectTrigger>
                 <SelectContent>

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +31,7 @@ vi.mock("@/lib/trpc", () => ({
       narrative: { useMutation: () => ({ data: { text: "## الملخص التنفيذي\n\nتم تحقيق المستهدف." }, mutate, isPending: false, isError: false }) },
     },
     spatial: { overview: { useQuery: () => ({ data: { availableYears: [2025], indicators: [{ id: 1, name: "الوافدون", unit: "عدد" }], observations: [{ areaName: "طرابلس", areaType: "city", indicatorId: 1, indicatorName: "الوافدون", unit: "عدد", year: 2025, value: 100, source: "مصدر رسمي" }] }, isLoading: false, isError: false }) } },
+    assistant: { data: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) } },
   },
 }));
 
@@ -64,7 +65,7 @@ describe("dashboard export and AI summary UI", () => {
     expect(screen.getAllByRole("button", { name: "PDF" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("نطاق العرض المعتمد")).toBeTruthy();
     expect(screen.getByText(/الملخص التنفيذي/)).toBeTruthy();
-    const sdgFilter = screen.getAllByRole("combobox")[4];
+    const sdgFilter = screen.getByRole("combobox", { name: "هدف التنمية في لوحة المؤشرات" });
     fireEvent.pointerDown(sdgFilter, { button: 0, pointerType: "mouse" });
     fireEvent.click(screen.getByText("SDG 8"));
     fireEvent.click(screen.getByRole("button", { name: "توليد التقرير النصي" }));
@@ -73,10 +74,10 @@ describe("dashboard export and AI summary UI", () => {
 
   it("يعرض مؤشرين مختلفين جنباً إلى جنب مع وحدات القياس", () => {
     render(<Home />);
-    const first = screen.getAllByRole("combobox")[5];
+    const first = screen.getByRole("combobox", { name: "المؤشر الأول في المقارنة" });
     fireEvent.pointerDown(first, { button: 0, pointerType: "mouse" });
     fireEvent.click(screen.getByRole("option", { name: "الوافدون" }));
-    const second = screen.getAllByRole("combobox")[6];
+    const second = screen.getByRole("combobox", { name: "المؤشر الثاني في المقارنة" });
     fireEvent.pointerDown(second, { button: 0, pointerType: "mouse" });
     fireEvent.click(screen.getByRole("option", { name: "ليالي الإقامة" }));
     expect(screen.getByText("مقارنة المؤشرات")).toBeTruthy();
@@ -113,7 +114,7 @@ describe("dashboard export and AI summary UI", () => {
     expect(screen.getAllByText("طرابلس").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("2025")).toBeTruthy();
     expect(screen.queryByText("2.025")).toBeNull();
-    const axisFilter = screen.getAllByRole("combobox")[2];
+    const axisFilter = screen.getByRole("combobox", { name: "محور لوحة المؤشرات" });
     fireEvent.pointerDown(axisFilter, { button: 0, pointerType: "mouse" });
     fireEvent.click(screen.getByRole("option", { name: "اقتصادي" }));
     expect(screen.getByText("نسبة تحقيق المستهدفات")).toBeTruthy();

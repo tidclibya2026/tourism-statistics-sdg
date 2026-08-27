@@ -97,6 +97,11 @@ html.accessibility-font-xlarge { font-size: 125%; }
 html.accessibility-reduce-motion *, html.accessibility-reduce-motion *::before, html.accessibility-reduce-motion *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 html.accessibility-high-contrast { --foreground: oklch(0.14 0 0); --muted-foreground: oklch(0.24 0 0); --border: oklch(0.32 0 0); }
 .dark .bg-white { background-color: oklch(0.25 0.03 174) !important; }
+.dark .smart-tourism-search { background: linear-gradient(135deg, oklch(0.24 0.04 174), oklch(0.2 0.025 174)) !important; border-color: oklch(0.42 0.05 174) !important; }
+.dark .smart-tourism-search .border-\[\#cfe2db\] { border-color: oklch(0.42 0.05 174) !important; }
+.dark .smart-tourism-search .bg-\[\#dff0e9\] { background-color: oklch(0.32 0.04 174) !important; }
+.dark .smart-tourism-search .text-\[\#0f5c58\], .dark .smart-tourism-search .text-\[\#0f766e\] { color: oklch(0.8 0.11 170) !important; }
+.dark .smart-tourism-search .hover\:bg-\[\#eaf6f1\]:hover { background-color: oklch(0.31 0.04 174) !important; }
 .dark .bg-\[\#f4f7f5\], .dark .bg-\[\#f9fbfa\] { background-color: oklch(0.2 0.025 174) !important; }
 .dark .text-slate-500, .dark .text-slate-600, .dark .text-slate-700 { color: oklch(0.8 0.015 170) !important; }
 .dark .text-\[\#173f3d\], .dark .text-\[\#153c39\] { color: oklch(0.96 0.01 170) !important; }
