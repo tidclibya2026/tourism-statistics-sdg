@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { registerPublicationApi } from "../publicationApi";
 import { applySecurityHeaders, createApiRateLimitMiddleware } from "./security";
 import { dependencyReviewScheduleHandler } from "../dependencyReviewSchedule";
+import { assertRuntimeEnvironment } from "./envValidation";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -32,6 +33,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  assertRuntimeEnvironment(process.env);
   const app = express();
   const server = createServer(app);
   app.disable("x-powered-by");
@@ -39,7 +41,9 @@ async function startServer() {
   app.use(applySecurityHeaders);
   // ملفات Excel تعالج في الواجهة إلى صفوف متحققة؛ لا يحتاج الخادم قبول أجسام ضخمة.
   app.use(express.json({ limit: "8mb" }));
-  app.use(express.urlencoded({ limit: "8mb", extended: true, parameterLimit: 100 }));
+  app.use(
+    express.urlencoded({ limit: "8mb", extended: true, parameterLimit: 100 })
+  );
   app.use("/api", createApiRateLimitMiddleware());
   registerStorageProxy(app);
   registerOAuthRoutes(app);
