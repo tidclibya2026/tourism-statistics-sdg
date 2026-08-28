@@ -69,6 +69,11 @@ export function validateRuntimeEnvironment(
     );
   }
 
+  const readinessTimeout = Number(environment.READINESS_TIMEOUT_MS ?? 3_000);
+  if (!Number.isInteger(readinessTimeout) || readinessTimeout < 250 || readinessTimeout > 10_000) {
+    errors.push("READINESS_TIMEOUT_MS يجب أن يكون عدداً صحيحاً بين 250 و10000");
+  }
+
   const oauthServerUrl = environment.OAUTH_SERVER_URL?.trim();
   if (oauthServerUrl && !isHttpUrl(oauthServerUrl, isProduction)) {
     (isProduction ? errors : warnings).push(

@@ -88,4 +88,14 @@ describe("runtime environment validation", () => {
     expect(result.errors).toEqual([]);
     expect(result.warnings).toContain("DATABASE_URL غير مضبوط");
   });
+
+  it("rejects an unsafe readiness timeout", () => {
+    const result = validateRuntimeEnvironment({
+      ...validProductionEnvironment,
+      READINESS_TIMEOUT_MS: "30000",
+    });
+    expect(result.errors).toContain(
+      "READINESS_TIMEOUT_MS يجب أن يكون عدداً صحيحاً بين 250 و10000"
+    );
+  });
 });

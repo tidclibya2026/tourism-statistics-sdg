@@ -5,6 +5,7 @@ import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 import { getAuthProvider } from "./authProvider";
+import { logOperationalEvent, safeErrorMetadata } from "./observability";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -60,7 +61,7 @@ export function registerOAuthRoutes(app: Express) {
 
       res.redirect(302, "/");
     } catch (error) {
-      console.error("[OAuth] Callback failed", error);
+      logOperationalEvent("warn", "oauth_callback_failed", safeErrorMetadata(error));
       res.status(500).json({ error: "OAuth callback failed" });
     }
   });

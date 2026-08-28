@@ -36,6 +36,7 @@ import { buildCityTrendSeries } from "../shared/cityTrends";
 import { officialCityAccommodation2013Source, officialCityAccommodation2013Year } from "../shared/officialCityAccommodationBatch";
 import { officialCityGuides2009to2010IndicatorCode, officialCityGuides2009to2010Sources, officialCityGuides2009to2010Years } from "../shared/officialCityGuides2009to2010Batch";
 import { buildPublicationShowcaseAnalytics } from "../shared/publicationShowcase";
+import { logOperationalEvent, safeErrorMetadata } from "./_core/observability";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -44,7 +45,7 @@ export async function getDb() {
     try {
       _db = drizzle(process.env.DATABASE_URL);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      logOperationalEvent("warn", "database_client_initialization_failed", safeErrorMetadata(error));
       _db = null;
     }
   }

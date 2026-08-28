@@ -7,6 +7,7 @@ import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
+import { logOperationalEvent, safeErrorMetadata } from "./observability";
 import type {
   ExchangeTokenRequest,
   ExchangeTokenResponse,
@@ -32,11 +33,9 @@ const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserI
 
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
-    console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
+    logOperationalEvent("info", "oauth_client_initialized", { configured: Boolean(ENV.oAuthServerUrl) });
     if (!ENV.oAuthServerUrl) {
-      console.error(
-        "[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable."
-      );
+      logOperationalEvent("warn", "oauth_server_not_configured");
     }
   }
 
@@ -306,7 +305,7 @@ class SDKServer {
         });
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
+        logOperationalEvent("warn", "oauth_user_sync_failed", safeErrorMetadata(error));
         throw ForbiddenError("Failed to sync user info");
       }
     }

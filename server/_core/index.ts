@@ -12,6 +12,8 @@ import { registerPublicationApi } from "../publicationApi";
 import { applySecurityHeaders, createApiRateLimitMiddleware } from "./security";
 import { dependencyReviewScheduleHandler } from "../dependencyReviewSchedule";
 import { assertRuntimeEnvironment } from "./envValidation";
+import { requestObservability, logOperationalEvent, safeErrorMetadata } from "./observability";
+import { registerOperationalHealthRoutes } from "./operationalHealth";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -39,6 +41,8 @@ async function startServer() {
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
   app.use(applySecurityHeaders);
+  app.use(requestObservability);
+  registerOperationalHealthRoutes(app);
   // ملفات Excel تعالج في الواجهة إلى صفوف متحققة؛ لا يحتاج الخادم قبول أجسام ضخمة.
   app.use(express.json({ limit: "8mb" }));
   app.use(
@@ -68,12 +72,15 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    logOperationalEvent("warn", "preferred_port_unavailable", { preferredPort, selectedPort: port });
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    logOperationalEvent("info", "server_started", { port });
   });
 }
 
-startServer().catch(console.error);
+startServer().catch(error => {
+  logOperationalEvent("error", "server_start_failed", safeErrorMetadata(error));
+  process.exitCode = 1;
+});
