@@ -2,9 +2,24 @@ import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 const allowDirty = process.argv.includes("--allow-dirty");
-const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const git = (...args) => spawnSync("git", args, { encoding: "utf8" }).stdout.trim();
 const clean = git("status", "--porcelain") === "";
+
+function runPnpm(args) {
+  // pnpm exposes the exact package-manager script through npm_execpath. Invoking
+  // it with Node avoids Windows spawn failures for .cmd shims (EINVAL/ENOENT).
+  if (process.env.npm_execpath) {
+    return spawnSync(process.execPath, [process.env.npm_execpath, ...args], {
+      stdio: "inherit",
+      shell: false,
+    });
+  }
+
+  return spawnSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", args, {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
+}
 
 if (!clean && !allowDirty) {
   console.error("Release gate requires a clean working tree. Use release:gate:dev only while developing.");
@@ -24,7 +39,10 @@ const results = [];
 for (const [name, args] of commands) {
   const started = Date.now();
   console.log(`\n=== ${name} ===`);
-  const result = spawnSync(pnpm, args, { stdio: "inherit", shell: false });
+  const result = runPnpm(args);
+  if (result.error) {
+    console.error(`Unable to start ${name}: ${result.error.code ?? result.error.message}`);
+  }
   results.push({ name, result: result.status === 0 ? "passed" : "failed", durationMs: Date.now() - started });
   if (result.status !== 0) break;
 }
