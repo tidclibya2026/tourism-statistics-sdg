@@ -1,12 +1,15 @@
 import { trpc } from "@/lib/trpc";
-import { COOKIE_NAME, UNAUTHED_ERR_MSG } from '@shared/const';
+import { COOKIE_NAME, UNAUTHED_ERR_MSG } from "@shared/const";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
+import { installAnalytics } from "./lib/analytics";
 import { startLogin } from "./const";
 import "./index.css";
+
+installAnalytics();
 
 const queryClient = new QueryClient();
 
@@ -29,7 +32,11 @@ queryClient.getQueryCache().subscribe(event => {
     // every console.error into a persistent red user-facing counter. Keep details
     // in the local development console only, and do not flag expected session
     // transitions in the managed preview.
-    if (import.meta.env.DEV && window.location.hostname === "localhost" && !(error instanceof TRPCClientError && error.message === UNAUTHED_ERR_MSG)) {
+    if (
+      import.meta.env.DEV &&
+      window.location.hostname === "localhost" &&
+      !(error instanceof TRPCClientError && error.message === UNAUTHED_ERR_MSG)
+    ) {
       console.error("[API Query Error]", error);
     }
   }
@@ -39,7 +46,11 @@ queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
-    if (import.meta.env.DEV && window.location.hostname === "localhost" && !(error instanceof TRPCClientError && error.message === UNAUTHED_ERR_MSG)) {
+    if (
+      import.meta.env.DEV &&
+      window.location.hostname === "localhost" &&
+      !(error instanceof TRPCClientError && error.message === UNAUTHED_ERR_MSG)
+    ) {
       console.error("[API Mutation Error]", error);
     }
   }
