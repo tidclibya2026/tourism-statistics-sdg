@@ -15,6 +15,9 @@
     "db:readiness": "node scripts/check-database-readiness.mjs",
     "db:readiness:connect": "node scripts/check-database-readiness.mjs --connect",
     "db:backup:verify": "node scripts/verify-database-backup.mjs",
+    "security:secrets": "node scripts/scan-secrets.mjs",
+    "release:gate": "node scripts/release-readiness.mjs",
+    "release:gate:dev": "node scripts/release-readiness.mjs --allow-dirty",
     "db:push": "pnpm db:generate && pnpm db:migrate"
   },
   "dependencies": {
