@@ -64,6 +64,7 @@ import { MapView } from "@/components/Map";
 import { detachMapMarkers } from "@shared/mapMarkers";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { storageAssetUrl } from "@/lib/storageAssets";
 
 const axisColors = ["#c58a3f", "#25829a", "#20806c"];
 
@@ -1434,7 +1435,7 @@ function DashboardActivityMap({
       const name = String(event.feature.getProperty("MahallaA_1") || event.feature.getProperty("MahallaAre") || "بلدية");
       setSelectedName(name);
     });
-    fetch("/manus-storage/municipalities-wgs84_11f127be.geojson")
+    fetch(storageAssetUrl("municipalities-wgs84_11f127be.geojson"))
       .then(response => {
         if (!response.ok) throw new Error("boundary fetch failed");
         return response.json();
