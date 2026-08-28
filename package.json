@@ -12,6 +12,9 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:readiness": "node scripts/check-database-readiness.mjs",
+    "db:readiness:connect": "node scripts/check-database-readiness.mjs --connect",
+    "db:backup:verify": "node scripts/verify-database-backup.mjs",
     "db:push": "pnpm db:generate && pnpm db:migrate"
   },
   "dependencies": {

@@ -114,6 +114,9 @@ pnpm db:push
 | `pnpm start`                           | تشغيل ناتج البناء في وضع الإنتاج.                                      |
 | `pnpm db:generate`                     | توليد ترحيل Drizzle من المخطط.                                         |
 | `pnpm db:migrate`                      | تطبيق الترحيلات الموجودة على قاعدة البيانات المحددة في `DATABASE_URL`. |
+| `pnpm db:readiness`                    | فحص تسلسل الترحيلات واكتشاف الملفات المفقودة أو التغييرات التدميرية دون اتصال بقاعدة البيانات. |
+| `pnpm db:readiness:connect`            | تنفيذ الفحص ثم اختبار اتصال قاعدة الاختبار وTLS دون طباعة بيانات الاعتماد. |
+| `pnpm db:backup:verify <file> <sha256>` | التحقق من نوع وحجم وبصمة نسخة `sql.gz` قبل اعتمادها للاستعادة. |
 | `pnpm audit --prod --audit-level=high` | فحص تبعيات الإنتاج دون تعديلها.                                        |
 | `pnpm format`                          | تنسيق الملفات باستخدام Prettier.                                       |
 

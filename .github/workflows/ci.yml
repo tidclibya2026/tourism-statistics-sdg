@@ -43,6 +43,9 @@ jobs:
       - name: TypeScript check
         run: pnpm check
 
+      - name: Database migration readiness
+        run: pnpm db:readiness
+
       - name: Unit and integration tests
         run: pnpm test --run
 
