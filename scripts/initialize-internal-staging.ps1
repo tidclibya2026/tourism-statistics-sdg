@@ -53,7 +53,7 @@ AUTH_PROVIDER=manus
 VITE_AUTH_PROVIDER=manus
 VITE_APP_ID=$AppId
 OAUTH_SERVER_URL=https://api.manus.im
-VITE_OAUTH_PORTAL_URL=https://oauth.manus.im
+VITE_OAUTH_PORTAL_URL=https://manus.im
 OWNER_OPEN_ID=$OwnerOpenId
 OWNER_NAME=Staging Owner
 

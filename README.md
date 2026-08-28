@@ -39,16 +39,16 @@ pnpm install --frozen-lockfile
 
 ```dotenv
 DATABASE_URL=mysql://USER:PASSWORD@HOST:3306/DATABASE?ssl=true
-JWT_SECRET=ضع_قيمة_عشوائية_طويلة_محلياً
+JWT_SECRET=${DEVELOPMENT_JWT_SECRET}
 VITE_APP_ID=معرف_تطبيق_OAuth_لبيئة_التطوير
 OAUTH_SERVER_URL=https://api.manus.im
-VITE_OAUTH_PORTAL_URL=https://oauth.manus.im
+VITE_OAUTH_PORTAL_URL=https://manus.im
 OWNER_OPEN_ID=معرف_مالك_بيئة_التطوير
 OWNER_NAME=اسم_مالك_بيئة_التطوير
 BUILT_IN_FORGE_API_URL=https://api.manus.im
-BUILT_IN_FORGE_API_KEY=مفتاح_الخادم_لبيئة_التطوير
+BUILT_IN_FORGE_API_KEY=${DEVELOPMENT_SERVER_API_KEY}
 VITE_FRONTEND_FORGE_API_URL=https://api.manus.im
-VITE_FRONTEND_FORGE_API_KEY=مفتاح_الواجهة_لبيئة_التطوير
+VITE_FRONTEND_FORGE_API_KEY=${DEVELOPMENT_FRONTEND_API_KEY}
 TOURISM_DEPLOYMENT_ENV=development
 ```
 
@@ -191,6 +191,8 @@ pnpm db:push
 ## النشر الحالي والانتقال المستقبلي
 
 النسخة الحالية تعمل داخلياً على بيئة Manus الخاصة. عند الجاهزية للنشر الخارجي، أنشئ staging مستقلاً، واختر الاستضافة والدومين، ثم كوّن OAuth وTLS والنسخ الاحتياطي والمراقبة وسياسة الوصول، وأنجز اختبار قبول مؤسسي موثقاً قبل فتح أي وصول عام.
+
+بوابة الإصدار المؤسسية موثقة في [institutional_release_gate_ar.md](institutional_release_gate_ar.md). شغّل `pnpm release:gate` قبل ترشيح أي commit للدمج في `main`.
 
 ## الترخيص والملكية
 

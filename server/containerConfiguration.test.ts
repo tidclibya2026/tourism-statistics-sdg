@@ -25,6 +25,8 @@ describe("container configuration", () => {
     expect(compose).toContain("read_only: true");
     expect(compose).toContain("cap_drop: [ALL]");
     expect(initializer).toContain("RandomNumberGenerator");
+    expect(initializer).toContain("VITE_OAUTH_PORTAL_URL=https://manus.im");
+    expect(initializer).not.toContain("oauth.manus.im");
     expect(initializer).not.toMatch(/JWT_SECRET=[A-Za-z0-9]{32,}/);
     const firewall = readFileSync("scripts/configure-internal-staging-firewall.ps1", "utf8");
     expect(firewall).toContain('AllowedSubnet = "192.168.1.0/24"');
