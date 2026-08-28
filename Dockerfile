@@ -40,7 +40,19 @@ ENV PORT=3000
 ENV READINESS_TIMEOUT_MS=3000
 ENV SHUTDOWN_TIMEOUT_MS=10000
 WORKDIR /app
-RUN groupadd --system --gid 10001 tourism && useradd --system --uid 10001 --gid tourism --home-dir /app --shell /usr/sbin/nologin tourism
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && groupadd --system --gid 10001 tourism \
+    && useradd --system --uid 10001 --gid tourism --home-dir /app --shell /usr/sbin/nologin tourism \
+    && rm -rf \
+      /var/lib/apt/lists/* \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/corepack \
+      /usr/local/bin/pnpm \
+      /usr/local/bin/pnpx
 COPY --from=production-dependencies --chown=tourism:tourism /app/node_modules ./node_modules
 COPY --from=build --chown=tourism:tourism /app/dist ./dist
 COPY --from=build --chown=tourism:tourism /app/package.json ./package.json

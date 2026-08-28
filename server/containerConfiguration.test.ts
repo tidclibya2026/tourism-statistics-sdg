@@ -6,6 +6,9 @@ describe("container configuration", () => {
     const dockerfile = readFileSync("Dockerfile", "utf8");
     const dockerignore = readFileSync(".dockerignore", "utf8");
     expect(dockerfile).toContain("FROM node:22.16.0-bookworm-slim AS runtime");
+    expect(dockerfile).toContain("apt-get upgrade -y --no-install-recommends");
+    expect(dockerfile).toContain("/usr/local/lib/node_modules/npm");
+    expect(dockerfile).toContain("/usr/local/lib/node_modules/corepack");
     expect(dockerfile).toContain("USER tourism");
     expect(dockerfile).toContain("HEALTHCHECK");
     expect(dockerfile).not.toMatch(/(?:JWT_SECRET|DATABASE_URL|AUTH_CLIENT_SECRET)=/);
