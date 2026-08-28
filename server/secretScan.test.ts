@@ -16,6 +16,11 @@ describe("secret scanner", () => {
     expect(isPlaceholder("replace-with-a-long-random-secret")).toBe(true);
     expect(isPlaceholder("${DATABASE_URL}")).toBe(true);
     expect(scanText(".env.example", "DATABASE_URL=mysql://USER:PASSWORD@db.example/app")).toEqual([]);
+    expect(scanText("README.md", [
+      "JWT_SECRET=ضع_قيمة_عشوائية_طويلة_محلياً",
+      "BUILT_IN_FORGE_API_KEY=مفتاح_الخادم_لبيئة_التطوير",
+      "VITE_FRONTEND_FORGE_API_KEY=مفتاح_الواجهة_لبيئة_التطوير",
+    ].join("\n"))).toEqual([]);
   });
 
   it("detects private keys and embedded database passwords", () => {
