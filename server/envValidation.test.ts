@@ -11,6 +11,22 @@ const validProductionEnvironment = {
   JWT_SECRET: "a-secure-session-secret-with-32-characters",
   VITE_APP_ID: "tourism-platform",
   OAUTH_SERVER_URL: "https://identity.example.com",
+  VITE_OAUTH_PORTAL_URL: "https://oauth.example.com",
+};
+
+const validOidcProductionEnvironment = {
+  NODE_ENV: "production",
+  AUTH_PROVIDER: "oidc",
+  VITE_AUTH_PROVIDER: "oidc",
+  DATABASE_URL: "mysql://tourism:secret@database.example.com:3306/tourism",
+  JWT_SECRET: "a-secure-session-secret-with-32-characters",
+  AUTH_CLIENT_ID: "tourism-platform",
+  AUTH_CLIENT_SECRET: "client-secret",
+  VITE_AUTH_CLIENT_ID: "tourism-platform",
+  OIDC_ISSUER_URL: "https://identity.gov.ly",
+  OIDC_TOKEN_URL: "https://identity.gov.ly/oauth/token",
+  OIDC_JWKS_URL: "https://identity.gov.ly/.well-known/jwks.json",
+  VITE_OIDC_AUTHORIZATION_URL: "https://identity.gov.ly/oauth/authorize",
 };
 
 describe("runtime environment validation", () => {
@@ -19,6 +35,27 @@ describe("runtime environment validation", () => {
       errors: [],
       warnings: [],
     });
+  });
+
+  it("accepts a complete institutional OIDC configuration", () => {
+    expect(validateRuntimeEnvironment(validOidcProductionEnvironment)).toEqual({
+      errors: [],
+      warnings: [],
+    });
+  });
+
+  it("requires complete and consistent OIDC settings", () => {
+    const result = validateRuntimeEnvironment({
+      ...validOidcProductionEnvironment,
+      VITE_AUTH_CLIENT_ID: "another-client",
+      OIDC_JWKS_URL: "http://identity.gov.ly/jwks.json",
+    });
+    expect(result.errors).toContain(
+      "AUTH_CLIENT_ID وVITE_AUTH_CLIENT_ID يجب أن يتطابقا"
+    );
+    expect(result.errors).toContain(
+      "OIDC_JWKS_URL يجب أن يكون رابط HTTPS صالحاً"
+    );
   });
 
   it("blocks production when required configuration is missing", () => {

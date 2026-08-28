@@ -4,6 +4,7 @@ import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+import { getAuthProvider } from "./authProvider";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -32,23 +33,24 @@ export function registerOAuthRoutes(app: Express) {
     res.clearCookie(OAUTH_STATE_COOKIE, getSessionCookieOptions(req));
 
     try {
-      const tokenResponse = await sdk.exchangeCodeForToken(code, state);
-      const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
+      const provider = getAuthProvider();
+      const tokenResponse = await provider.exchangeCode(code, state);
+      const userInfo = await provider.resolveIdentity(tokenResponse);
 
-      if (!userInfo.openId) {
-        res.status(400).json({ error: "openId missing from user info" });
+      if (!userInfo.subject) {
+        res.status(400).json({ error: "subject missing from user info" });
         return;
       }
 
       await db.upsertUser({
-        openId: userInfo.openId,
+        openId: userInfo.subject,
         name: userInfo.name || null,
         email: userInfo.email ?? null,
-        loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+        loginMethod: userInfo.loginMethod,
         lastSignedIn: new Date(),
       });
 
-      const sessionToken = await sdk.createSessionToken(userInfo.openId, {
+      const sessionToken = await sdk.createSessionToken(userInfo.subject, {
         name: userInfo.name || "",
         expiresInMs: ONE_YEAR_MS,
       });
