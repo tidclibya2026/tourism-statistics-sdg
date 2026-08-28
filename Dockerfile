@@ -29,6 +29,11 @@ ENV VITE_ANALYTICS_WEBSITE_ID=$VITE_ANALYTICS_WEBSITE_ID
 COPY . .
 RUN pnpm build
 
+FROM dependencies AS migration
+COPY drizzle.config.ts ./
+COPY drizzle ./drizzle
+CMD ["pnpm", "db:migrate"]
+
 FROM base AS production-dependencies
 COPY package.json pnpm-lock.yaml ./
 COPY patches ./patches

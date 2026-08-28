@@ -15,6 +15,8 @@ describe("secret scanner", () => {
   it("permits documented placeholders", () => {
     expect(isPlaceholder("replace-with-a-long-random-secret")).toBe(true);
     expect(isPlaceholder("${DATABASE_URL}")).toBe(true);
+    expect(isPlaceholder("GENERATED_LOCALLY")).toBe(true);
+    expect(isPlaceholder("$databasePassword")).toBe(true);
     expect(scanText(".env.example", "DATABASE_URL=mysql://USER:PASSWORD@db.example/app")).toEqual([]);
     expect(scanText("README.md", [
       "JWT_SECRET=ضع_قيمة_عشوائية_طويلة_محلياً",

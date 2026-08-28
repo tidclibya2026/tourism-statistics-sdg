@@ -13,10 +13,11 @@ export function isPlaceholder(value) {
   const normalized = value.trim().replace(/^['"]|['"]$/g, "");
   return (
     normalized === "" ||
-    /^(?:undefined|null|changeme|example|password|secret|token|api[_-]?key|ci-placeholder|sha256_value)$/i.test(normalized) ||
+    /^(?:undefined|null|changeme|example|password|secret|token|api[_-]?key|ci-placeholder|sha256_value|generated_locally|set_locally)$/i.test(normalized) ||
     /^(?:replace|set|insert|your)[-_ ]?(?:me|with|this|value|secret|password|token|key)/i.test(normalized) ||
     /^(?:ضع|أدخل|ادخل|مفتاح|معرف|اسم)[-_ ]/.test(normalized) ||
     /^(?:staging|production|development|test)_[A-Z0-9_]+$/i.test(normalized) ||
+    /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(normalized) ||
     /^\$\{[^}]+\}$/.test(normalized) ||
     /^<[^>]+>$/.test(normalized) ||
     /USER(?::|%3A)PASSWORD/i.test(normalized) ||

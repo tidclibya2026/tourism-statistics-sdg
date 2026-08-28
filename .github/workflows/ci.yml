@@ -86,6 +86,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate internal staging Compose configuration
+        env:
+          STAGING_ENV_FILE: deploy/staging.internal.env.template
+        run: docker compose --env-file deploy/staging.internal.env.template -f compose.staging.internal.yml config --quiet
+
       - name: Build runtime image
         run: |
           docker build \
