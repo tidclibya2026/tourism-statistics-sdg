@@ -37,4 +37,23 @@ describe("operational health routes", () => {
       { status: 503, body: { status: "unavailable", checks: { database: "timeout" } } },
     ]);
   });
+
+  it("stops readiness immediately during graceful shutdown", async () => {
+    const handlers = new Map<string, Function>();
+    const app = { get: (path: string, handler: Function) => handlers.set(path, handler) } as unknown as Express;
+    registerOperationalHealthRoutes(
+      app,
+      async () => ({ ok: true, status: "ready", latencyMs: 1 }),
+      { shuttingDown: true }
+    );
+    let status = 200;
+    let body: unknown;
+    const response = {
+      status(value: number) { status = value; return this; },
+      json(value: unknown) { body = value; return this; },
+    };
+    await handlers.get("/readyz")?.({}, response);
+    expect(status).toBe(503);
+    expect(body).toEqual({ status: "shutting_down", checks: { database: "skipped" } });
+  });
 });

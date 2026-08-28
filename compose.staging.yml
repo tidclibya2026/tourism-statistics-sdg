@@ -1,0 +1,28 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        VITE_AUTH_PROVIDER: ${VITE_AUTH_PROVIDER:-manus}
+        VITE_AUTH_CLIENT_ID: ${VITE_AUTH_CLIENT_ID:-}
+        VITE_APP_ID: ${VITE_APP_ID:-}
+        VITE_OAUTH_PORTAL_URL: ${VITE_OAUTH_PORTAL_URL:-}
+        VITE_OIDC_AUTHORIZATION_URL: ${VITE_OIDC_AUTHORIZATION_URL:-}
+        VITE_STORAGE_PUBLIC_BASE_URL: ${VITE_STORAGE_PUBLIC_BASE_URL:-/manus-storage}
+    env_file: deploy/staging.env
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 4s
+      start_period: 30s
+      retries: 5

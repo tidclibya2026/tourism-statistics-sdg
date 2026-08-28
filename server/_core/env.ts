@@ -16,4 +16,5 @@ export const ENV = {
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   storagePublicBaseUrl: process.env.PUBLIC_STORAGE_BASE_URL ?? "/manus-storage",
   readinessTimeoutMs: Number(process.env.READINESS_TIMEOUT_MS ?? 3_000),
+  shutdownTimeoutMs: Number(process.env.SHUTDOWN_TIMEOUT_MS ?? 10_000),
 };

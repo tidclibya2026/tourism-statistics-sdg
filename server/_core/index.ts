@@ -14,6 +14,7 @@ import { dependencyReviewScheduleHandler } from "../dependencyReviewSchedule";
 import { assertRuntimeEnvironment } from "./envValidation";
 import { requestObservability, logOperationalEvent, safeErrorMetadata } from "./observability";
 import { registerOperationalHealthRoutes } from "./operationalHealth";
+import { registerGracefulShutdown } from "./gracefulShutdown";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -38,6 +39,7 @@ async function startServer() {
   assertRuntimeEnvironment(process.env);
   const app = express();
   const server = createServer(app);
+  registerGracefulShutdown(server);
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
   app.use(applySecurityHeaders);

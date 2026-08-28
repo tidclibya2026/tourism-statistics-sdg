@@ -63,3 +63,20 @@ jobs:
           path: dist/
           retention-days: 14
           if-no-files-found: error
+
+  container:
+    name: Build hardened container image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build runtime image
+        run: |
+          docker build \
+            --build-arg VITE_AUTH_PROVIDER=manus \
+            --build-arg VITE_APP_ID=ci-placeholder \
+            --build-arg VITE_OAUTH_PORTAL_URL=https://oauth.example.invalid \
+            --tag tourism-statistics-sdg:${{ github.sha }} \
+            .

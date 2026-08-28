@@ -1,0 +1,16 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+node_modules
+dist
+coverage
+backups
+*.sql.gz
+*.dump
+*.log
+.manus-logs
+.webdev
+tmp
+temp

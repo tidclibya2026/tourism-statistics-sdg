@@ -98,4 +98,14 @@ describe("runtime environment validation", () => {
       "READINESS_TIMEOUT_MS يجب أن يكون عدداً صحيحاً بين 250 و10000"
     );
   });
+
+  it("rejects an unsafe graceful shutdown timeout", () => {
+    const result = validateRuntimeEnvironment({
+      ...validProductionEnvironment,
+      SHUTDOWN_TIMEOUT_MS: "500",
+    });
+    expect(result.errors).toContain(
+      "SHUTDOWN_TIMEOUT_MS يجب أن يكون عدداً صحيحاً بين 1000 و30000"
+    );
+  });
 });

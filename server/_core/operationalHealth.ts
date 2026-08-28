@@ -2,6 +2,7 @@ import type { Express } from "express";
 import mysql from "mysql2/promise";
 import { ENV } from "./env";
 import { logOperationalEvent, safeErrorMetadata } from "./observability";
+import { runtimeState, type RuntimeState } from "./runtimeState";
 
 export type DatabaseReadiness = {
   ok: boolean;
@@ -48,12 +49,17 @@ export async function probeDatabase(
 
 export function registerOperationalHealthRoutes(
   app: Express,
-  databaseProbe: () => Promise<DatabaseReadiness> = () => probeDatabase()
+  databaseProbe: () => Promise<DatabaseReadiness> = () => probeDatabase(),
+  state: RuntimeState = runtimeState
 ) {
   app.get("/healthz", (_req, res) => {
     res.status(200).json({ status: "ok" });
   });
   app.get("/readyz", async (_req, res) => {
+    if (state.shuttingDown) {
+      res.status(503).json({ status: "shutting_down", checks: { database: "skipped" } });
+      return;
+    }
     const database = await databaseProbe();
     res.status(database.ok ? 200 : 503).json({
       status: database.ok ? "ready" : "unavailable",
